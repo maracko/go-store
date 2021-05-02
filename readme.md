@@ -30,10 +30,12 @@ go install github.com/maracko/go-store
 go-store [command] [argument] --flags
 ```
 
+`go-store help` can be used to get help on commands
+
 ## Examples
 <br>
 
-### HTTP
+## HTTP
 <br> 
 
 ```
@@ -47,43 +49,14 @@ Logs will be outputed to stdout
 2021/05/02 18:54:22 GET /go-store?key=aa localhost:8888
 ```
 
+### Server flags
+
+- **--location -l** => location of database file to read from (if blank or not provided a empty database in memory only will be initialised)
+- **--port -p** => port on which to start the server
+- **--memory -m** => if present database won't be saved upon exit (even if read from a file first)
 <br>
 
-### TCP
-<br>
-
-```
-go-store server TCP -p 8888 -l /home/mario/database.json
-
-2021/05/02 18:57:33 TCP server started
-2021/05/02 18:58:09 Accepted connection from [::1]:34126
-```
-Same is valid for TCP server. To interact with it use the `go-store client`
-
-```
-go-store client -s localhost -p 9999
-
-Welcome to go-store server!
-2021/05/02 18:58:01 Connected to localhost:9999
-$:set foo bar
-Created new key foo
-$:get foo
-bar
-$:
-```
-**TCP currently only supports strings for both key and value, a.k.a will do no encoding on them (so no complex types)**  
-<br>
-
-## TCP Client commands
-<br>
-
-- **get [key]** => returns a single key  
-- **set [key] [value]** => set a new key  
-- **upd [key] [value]** => update existing key
-- **del [key]** => deletes key
-<br>
-
-## HTTP Requests
+### HTTP Requests
 <br>
 
  **http://{host}:{port}/go-store?key=key**
@@ -104,6 +77,42 @@ For retrieving operations a query param `key` must be set. To retrieve multiple 
 ### Data
 
 When you want to create/update keys you must send data inside request **body in JSON format**.
+<br>
+
+## TCP
+<br>
+
+```
+go-store server TCP -p 8888 -l /home/mario/database.json
+
+2021/05/02 18:57:33 TCP server started
+2021/05/02 18:58:09 Accepted connection from [::1]:34126
+```
+TCP server supports the same flags as HTTP. To interact with it use the `go-store client`
+
+```
+go-store client -s localhost -p 9999
+
+Welcome to go-store server!
+2021/05/02 18:58:01 Connected to localhost:9999
+$:set foo bar
+Created new key foo
+$:get foo
+bar
+$:
+```
+**TCP currently only supports strings for both key and value, a.k.a will do no encoding on them (so no complex types)**  
+<br>
+
+
+
+## TCP Client commands
+<br>
+
+- **get [key]** => returns a single key  
+- **set [key] [value]** => set a new key  
+- **upd [key] [value]** => update existing key
+- **del [key]** => deletes key
 <br>
 
 ## TODO
