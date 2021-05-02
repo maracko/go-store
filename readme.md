@@ -119,5 +119,6 @@ $:
 
 - Make TCP client/server support complex types and commands
 - Support HTTPS for HTTP server
+- Add authorization support
 - Other things I will think of
 
