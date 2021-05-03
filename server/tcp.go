@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-//TCPStart starts a TCP server
+// TCPStart starts a TCP server
 func (s *Server) TCPStart() {
 	li, err := net.Listen("tcp", fmt.Sprintf(":%v", s.Port))
 	if err != nil {
@@ -28,7 +28,6 @@ func (s *Server) TCPStart() {
 }
 
 func tHandle(conn net.Conn) {
-
 	log.Printf("Accepted connection from %v", conn.RemoteAddr())
 
 	scanner := bufio.NewScanner(conn)
@@ -42,7 +41,6 @@ func tHandle(conn net.Conn) {
 	}
 
 	log.Printf("Connection from %v closed\n", conn.RemoteAddr())
-	return
 }
 
 func tCommand(s string) interface{} {
@@ -55,7 +53,6 @@ func tCommand(s string) interface{} {
 	}
 
 	switch strings.ToLower(data[0]) {
-
 	case "get":
 		res, _ := DB.Read(data[1])
 		return res
@@ -81,7 +78,6 @@ func tCommand(s string) interface{} {
 			return err
 		}
 		return fmt.Sprintf("Deleted key: %v", data[1])
-
 	}
 
 	return nil

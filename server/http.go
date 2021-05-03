@@ -9,33 +9,35 @@ import (
 	"strings"
 )
 
-//HTTPStart starts the HTTP server
+// HTTPStart starts the HTTP server
 func (s *Server) HTTPStart() {
-
-	//Map of all endpoints
+	// Map of all endpoints
 	endpoints := map[string]http.HandlerFunc{
 		"/go-store": hRedirect,
 	}
 
-	//Add middleware from []commonMiddleware to each endpoint
+	// Add middleware from []commonMiddleware to each endpoint
 	for endpoint, f := range endpoints {
 		http.HandleFunc(endpoint, multipleMiddleware(f, commonMiddleware...))
 	}
 
-	//If conn fails
+	// If conn fails
 	err := DB.Connect()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	//Write and close file on exit
-	defer s.DB.Disconnect()
+	// Write and close file on exit
+	defer func() {
+		// TODO: check error
+		_ = s.DB.Disconnect()
+	}()
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.Port), nil))
-
+	// TODO: check error
+	_ = http.ListenAndServe(fmt.Sprintf(":%v", s.Port), nil)
 }
 
-//Choose appropriate func based on method and params
+// Choose appropriate func based on method and params
 func hRedirect(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -65,27 +67,23 @@ func hRedirect(w http.ResponseWriter, r *http.Request) {
 	default:
 		jsonErr(w, errD{"Not allowed", "Method not allowed"}, http.StatusMethodNotAllowed)
 	}
-	return
 }
 
 func hRead(w http.ResponseWriter, r *http.Request) {
-
-	key, _ := r.URL.Query()["key"]
+	key := r.URL.Query()["key"]
 
 	val, err := DB.Read(key[0])
-
 	if err != nil {
 		jsonErr(w, errD{"not found", err.Error()}, http.StatusNotFound)
 		return
 	}
 
-	json.NewEncoder(w).Encode(resource{key[0], val})
-	return
+	// TODO: check error
+	_ = json.NewEncoder(w).Encode(resource{key[0], val})
 }
 
 func hReadMany(w http.ResponseWriter, r *http.Request) {
-
-	key, _ := r.URL.Query()["key"]
+	key := r.URL.Query()["key"]
 
 	keys := strings.Split(key[0], ",")
 
@@ -96,20 +94,18 @@ func hReadMany(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	//If all keys are empty return
+	// If all keys are empty return
 	if empty == true {
 		jsonErr(w, errD{"no keys provided", "all keys are empty"}, 404)
 		return
 	}
 
 	val := DB.ReadMany(keys...)
-
-	json.NewEncoder(w).Encode(val)
-	return
+	// TODO: check error
+	_ = json.NewEncoder(w).Encode(val)
 }
 
 func hCreate(w http.ResponseWriter, r *http.Request) {
-
 	var res resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {
@@ -126,7 +122,6 @@ func hCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func hUpdate(w http.ResponseWriter, r *http.Request) {
-
 	var res resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {
@@ -143,7 +138,6 @@ func hUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func hDel(w http.ResponseWriter, r *http.Request) {
-
 	var res resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {

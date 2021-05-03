@@ -12,7 +12,7 @@ var serverCmd = &cobra.Command{
 	server HTTP -> Serves over HTTP (check serve HTTP help for more info)
 	server TCP -> Serves over custom TCP protocol, interaction is done with the 'go-store cli' command  (check serve TCP help for more info)`,
 	ValidArgs: []string{"HTTP", "TCP"},
-	//Enforce argument constraints
+	// Enforce argument constraints
 	Args: func(cmd *cobra.Command, args []string) error {
 		if err := cobra.OnlyValidArgs(cmd, args); err != nil {
 			return err
@@ -30,9 +30,11 @@ var serverCmd = &cobra.Command{
 
 		switch args[0] {
 		case "HTTP":
-			serveHTTPCmd.ExecuteC()
+			// TODO: check error
+			_, _ = serveHTTPCmd.ExecuteC()
 		case "TCP":
-			serveTCPCmd.ExecuteC()
+			// TODO: check error
+			_, _ = serveTCPCmd.ExecuteC()
 		}
 
 	},
@@ -44,7 +46,6 @@ var location string
 var memory bool
 
 func init() {
-
 	rootCmd.AddCommand(serverCmd)
 	serverCmd.AddCommand(serveHTTPCmd)
 	serverCmd.AddCommand(serveTCPCmd)

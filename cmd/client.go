@@ -48,7 +48,6 @@ var clientCmd = &cobra.Command{
 }
 
 func init() {
-
 	rootCmd.AddCommand(clientCmd)
 
 	clientCmd.Flags().StringVarP(&host, "server", "s", "localhost", "Address of the server")
