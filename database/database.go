@@ -8,13 +8,6 @@ import (
 	"os"
 )
 
-// DB represents the database struct
-type DB struct {
-	location string
-	database map[string]interface{}
-	memory   bool
-}
-
 // DBCrud is implemented by DB
 type DBCrud interface {
 	Connect()
@@ -26,11 +19,20 @@ type DBCrud interface {
 	Disconnect()
 }
 
-// Init initializes a database to a given location and sets it's internal DB to an empty map
-func (d *DB) Init(location string, memory bool) {
-	d.location = location
-	d.database = make(map[string]interface{})
-	d.memory = memory
+// New initializes a database to a given location and sets it's internal DB to an empty map
+func New(location string, memory bool) *DB {
+	return &DB{
+		location: location,
+		database: make(map[string]interface{}),
+		memory:   memory,
+	}
+}
+
+// DB represents the database struct
+type DB struct {
+	location string
+	database map[string]interface{}
+	memory   bool
 }
 
 // Connect connects to file and saves it's contents to database field

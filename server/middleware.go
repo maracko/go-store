@@ -21,7 +21,7 @@ func logMiddleWare(h http.HandlerFunc) http.HandlerFunc {
 
 func jsonHeader(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonH(w)
+		w.Header().Set("Content-type", "application/json")
 		h.ServeHTTP(w, r)
 	})
 }

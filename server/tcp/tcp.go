@@ -1,4 +1,4 @@
-package server
+package tcp
 
 import (
 	"bufio"
@@ -6,28 +6,14 @@ import (
 	"log"
 	"net"
 	"strings"
+
+	"github.com/maracko/go-store/database"
 )
 
-// TCPStart starts a TCP server
-func (s *Server) TCPStart() {
-	li, err := net.Listen("tcp", fmt.Sprintf(":%v", s.Port))
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer li.Close()
+// DB is the package wide pointer to a database object used for crud operations, it must be initialized first
+var DB = &database.DB{}
 
-	for {
-		conn, err := li.Accept()
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		go tHandle(conn)
-	}
-}
-
-func tHandle(conn net.Conn) {
+func Handle(conn net.Conn) {
 	log.Printf("Accepted connection from %v", conn.RemoteAddr())
 
 	scanner := bufio.NewScanner(conn)
@@ -35,7 +21,7 @@ func tHandle(conn net.Conn) {
 
 	for scanner.Scan() {
 		ln := scanner.Text()
-		resp := tCommand(ln)
+		resp := Command(ln)
 		log.Printf("Host: %v Command: %v Response: %v", conn.RemoteAddr(), ln, resp)
 		fmt.Fprintln(conn, resp)
 	}
@@ -43,7 +29,7 @@ func tHandle(conn net.Conn) {
 	log.Printf("Connection from %v closed\n", conn.RemoteAddr())
 }
 
-func tCommand(s string) interface{} {
+func Command(s string) interface{} {
 	e := "Invalid command"
 	data := strings.Split(s, " ")
 	l := len(data)

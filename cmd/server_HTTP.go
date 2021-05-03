@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/server"
 	"github.com/spf13/cobra"
 )
@@ -19,14 +20,10 @@ var serveHTTPCmd = &cobra.Command{
 	Defaults to port 8888. Empty database will be initialized and kept only in memory if no path is provided.
 	If you have json file with data you want to read from but not save provide a location along with -m (memory) flag`,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		// init DB
-		server.DB.Init(location, memory)
-
 		// create the server
 		S := &server.Server{
 			Port: port,
-			DB:   server.DB,
+			DB:   database.New(location, memory),
 		}
 
 		done := make(chan os.Signal, 1)
@@ -34,7 +31,7 @@ var serveHTTPCmd = &cobra.Command{
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 		log.Println("HTTP server started")
-		go S.HTTPStart()
+		go S.HTTP()
 
 		// Upon receiving a shutdown signal
 		<-done

@@ -25,9 +25,7 @@ var serverCmd = &cobra.Command{
 
 		return nil
 	},
-
 	Run: func(cmd *cobra.Command, args []string) {
-
 		switch args[0] {
 		case "HTTP":
 			// TODO: check error
@@ -36,7 +34,6 @@ var serverCmd = &cobra.Command{
 			// TODO: check error
 			_, _ = serveTCPCmd.ExecuteC()
 		}
-
 	},
 }
 
