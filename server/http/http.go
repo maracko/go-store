@@ -2,12 +2,15 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/errors"
+	"github.com/maracko/go-store/server"
 	"github.com/maracko/go-store/server/http/helpers"
 )
 
@@ -16,11 +19,56 @@ type resource struct {
 	Value interface{} `json:"value"`
 }
 
-// DB is the package wide pointer to a database object used for crud operations, it must be initialized first
-var DB = &database.DB{}
+// New create new server
+func New(port int, db *database.DB) server.Server {
+	return &httpServer{
+		port: port,
+		db:   db,
+	}
+}
 
-// Redirect appropriate func based on method and params
-func Redirect(w http.ResponseWriter, r *http.Request) {
+// Server is a struct with host info and a database instance
+type httpServer struct {
+	port int
+	db   *database.DB
+}
+
+// Clean clean server
+func (s *httpServer) Clean() error {
+	return s.db.Disconnect()
+}
+
+// Serve starts the HTTP server
+func (s *httpServer) Serve() {
+	// Map of all endpoints
+	endpoints := map[string]http.HandlerFunc{
+		// TODO: is path needed
+		"/go-store": s.handle,
+	}
+
+	// Add middleware from []commonMiddleware to each endpoint
+	for endpoint, f := range endpoints {
+		http.HandleFunc(endpoint, multipleMiddleware(f, commonMiddleware...))
+	}
+
+	// If conn fails
+	err := s.db.Connect()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	// Write and close file on exit
+	defer func() {
+		// TODO: check error
+		_ = s.db.Disconnect()
+	}()
+
+	// TODO: check error
+	_ = http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil)
+}
+
+// Handle appropriate func based on method and params
+func (s *httpServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		key, ok := r.URL.Query()["key"]
@@ -33,29 +81,29 @@ func Redirect(w http.ResponseWriter, r *http.Request) {
 		keys := strings.Split(key[0], ",")
 
 		if len(keys) == 1 {
-			Read(w, r)
+			s.read(w, r)
 			return
 		}
 
-		ReadMany(w, r)
+		s.readMany(w, r)
 		return
 
 	case "POST":
-		Create(w, r)
+		s.create(w, r)
 	case "PATCH":
-		Update(w, r)
+		s.update(w, r)
 	case "DELETE":
-		Delete(w, r)
+		s.delete(w, r)
 	default:
 		helpers.JSONEncode(w, errors.MethodNotAllowed("method %s not allowed", r.Method))
 	}
 }
 
 // Read read database key
-func Read(w http.ResponseWriter, r *http.Request) {
+func (s *httpServer) read(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query()["key"]
 
-	val, err := DB.Read(key[0])
+	val, err := s.db.Read(key[0])
 	if err != nil {
 		helpers.JSONEncode(w, errors.NotFoundWrap(err, "not found"))
 		return
@@ -66,7 +114,7 @@ func Read(w http.ResponseWriter, r *http.Request) {
 }
 
 // ReadMany read many records
-func ReadMany(w http.ResponseWriter, r *http.Request) {
+func (s *httpServer) readMany(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query()["key"]
 
 	keys := strings.Split(key[0], ",")
@@ -84,13 +132,13 @@ func ReadMany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	val := DB.ReadMany(keys...)
+	val := s.db.ReadMany(keys...)
 	// TODO: check error
 	_ = json.NewEncoder(w).Encode(val)
 }
 
 // Create create new value
-func Create(w http.ResponseWriter, r *http.Request) {
+func (s *httpServer) create(w http.ResponseWriter, r *http.Request) {
 	var res resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {
@@ -98,7 +146,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := DB.Create(res.Key, res.Value); err != nil {
+	if err := s.db.Create(res.Key, res.Value); err != nil {
 		helpers.JSONEncode(w, errors.BadRequestWrap(err, "duplicate key"))
 		return
 	}
@@ -107,7 +155,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update update key
-func Update(w http.ResponseWriter, r *http.Request) {
+func (s *httpServer) update(w http.ResponseWriter, r *http.Request) {
 	var res resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {
@@ -115,7 +163,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := DB.Update(res.Key, res.Value); err != nil {
+	if err := s.db.Update(res.Key, res.Value); err != nil {
 		helpers.JSONEncode(w, err)
 		return
 	}
@@ -124,7 +172,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete delete key
-func Delete(w http.ResponseWriter, r *http.Request) {
+func (s *httpServer) delete(w http.ResponseWriter, r *http.Request) {
 	var res resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {
@@ -132,7 +180,7 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := DB.Delete(res.Key); err != nil {
+	if err := s.db.Delete(res.Key); err != nil {
 		helpers.JSONEncode(w, err)
 		return
 	}
