@@ -8,17 +8,6 @@ import (
 	"os"
 )
 
-// DBCrud is implemented by DB
-type DBCrud interface {
-	Connect()
-	Create()
-	Read()
-	Update()
-	Delete()
-	ReadMany()
-	Disconnect()
-}
-
 // New initializes a database to a given location and sets it's internal DB to an empty map
 func New(location string, memory bool) *DB {
 	return &DB{
