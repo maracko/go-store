@@ -23,20 +23,20 @@ var serveHTTPCmd = &cobra.Command{
 		// init DB
 		server.DB.Init(location, memory)
 
-		//create the server
+		// create the server
 		S := &server.Server{
 			Port: port,
 			DB:   server.DB,
 		}
 
 		done := make(chan os.Signal, 1)
-		//Route shutdown signals to done channel
+		// Route shutdown signals to done channel
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 		log.Println("HTTP server started")
 		go S.HTTPStart()
 
-		//Upon receiving a shutdown signal
+		// Upon receiving a shutdown signal
 		<-done
 		fmt.Println("")
 		log.Println("Shutting down server")
