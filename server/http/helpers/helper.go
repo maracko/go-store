@@ -13,7 +13,10 @@ func JSONEncode(w http.ResponseWriter, b interface{}) {
 
 	e, ok := b.(errors.Error)
 	if ok {
+		b, _ := json.Marshal(e)
 		w.WriteHeader(e.Status)
+		w.Write(b)
+		return
 	}
 
 	// TODO: check error

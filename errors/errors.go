@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -14,6 +15,17 @@ type Error struct {
 
 func (t Error) Error() string {
 	return t.Err.Error()
+}
+
+func (t Error) MarshalJSON() ([]byte, error) {
+	type Alias Error
+	return json.Marshal(&struct {
+		Err string `json:"error"`
+		Alias
+	}{
+		Err:   t.Err.Error(),
+		Alias: (Alias)(t),
+	})
 }
 
 // GetStatus return error status
