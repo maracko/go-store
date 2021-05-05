@@ -1,4 +1,4 @@
-package server
+package tcp
 
 import (
 	"bufio"
@@ -6,11 +6,38 @@ import (
 	"log"
 	"net"
 	"strings"
+
+	"github.com/maracko/go-store/database"
+	"github.com/maracko/go-store/server"
 )
 
-// TCPStart starts a TCP server
-func (s *Server) TCPStart() {
-	li, err := net.Listen("tcp", fmt.Sprintf(":%v", s.Port))
+// New create new server
+func New(port int, db *database.DB) server.Server {
+	s := &tcpServer{
+		port: port,
+		db:   db,
+	}
+
+	// TODO: check error
+	_ = s.db.Connect()
+
+	return s
+}
+
+// Server is a struct with host info and a database instance
+type tcpServer struct {
+	port int
+	db   *database.DB
+}
+
+// Clean clean server
+func (s *tcpServer) Clean() error {
+	return s.db.Disconnect()
+}
+
+// Serve starts a TCP server
+func (s *tcpServer) Serve() {
+	li, err := net.Listen("tcp", fmt.Sprintf(":%v", s.port))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -23,11 +50,10 @@ func (s *Server) TCPStart() {
 			continue
 		}
 
-		go tHandle(conn)
+		go s.handle(conn)
 	}
 }
-
-func tHandle(conn net.Conn) {
+func (s *tcpServer) handle(conn net.Conn) {
 	log.Printf("Accepted connection from %v", conn.RemoteAddr())
 
 	scanner := bufio.NewScanner(conn)
@@ -35,7 +61,7 @@ func tHandle(conn net.Conn) {
 
 	for scanner.Scan() {
 		ln := scanner.Text()
-		resp := tCommand(ln)
+		resp := s.command(ln)
 		log.Printf("Host: %v Command: %v Response: %v", conn.RemoteAddr(), ln, resp)
 		fmt.Fprintln(conn, resp)
 	}
@@ -43,9 +69,9 @@ func tHandle(conn net.Conn) {
 	log.Printf("Connection from %v closed\n", conn.RemoteAddr())
 }
 
-func tCommand(s string) interface{} {
+func (s *tcpServer) command(input string) interface{} {
 	e := "Invalid command"
-	data := strings.Split(s, " ")
+	data := strings.Split(input, " ")
 	l := len(data)
 
 	if l < 2 {
@@ -54,11 +80,11 @@ func tCommand(s string) interface{} {
 
 	switch strings.ToLower(data[0]) {
 	case "get":
-		res, _ := DB.Read(data[1])
+		res, _ := s.db.Read(data[1])
 		return res
 	case "set":
 		if l == 3 {
-			err := DB.Create(data[1], data[2])
+			err := s.db.Create(data[1], data[2])
 			if err != nil {
 				return err
 			}
@@ -67,14 +93,14 @@ func tCommand(s string) interface{} {
 		return "Usage: [set] [key] [value]"
 	case "upd":
 		if l == 3 {
-			if err := DB.Update(data[1], data[2]); err != nil {
+			if err := s.db.Update(data[1], data[2]); err != nil {
 				return err
 			}
 			return fmt.Sprintf("Created key: %v to value: %v", data[1], data[2])
 		}
 		return "Usage: [update] [key] [value]"
 	case "del":
-		if err := DB.Delete(data[1]); err != nil {
+		if err := s.db.Delete(data[1]); err != nil {
 			return err
 		}
 		return fmt.Sprintf("Deleted key: %v", data[1])
