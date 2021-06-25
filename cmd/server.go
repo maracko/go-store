@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"log"
+
 	"github.com/spf13/cobra"
 )
 
@@ -28,11 +30,15 @@ var serverCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		switch args[0] {
 		case "HTTP":
-			// TODO: check error
-			_, _ = serveHTTPCmd.ExecuteC()
+			_, err := serveHTTPCmd.ExecuteC()
+			if err != nil {
+				log.Fatalln(err)
+			}
 		case "TCP":
-			// TODO: check error
-			_, _ = serveTCPCmd.ExecuteC()
+			_, err := serveTCPCmd.ExecuteC()
+			if err != nil {
+				log.Fatalln(err)
+			}
 		}
 	},
 }
