@@ -18,8 +18,9 @@ func New(port int, db *database.DB) server.Server {
 		db:   db,
 	}
 
-	// TODO: check error
-	_ = s.db.Connect()
+	if err := s.db.Connect(); err != nil {
+		log.Fatalln(err)
+	}
 
 	return s
 }
