@@ -9,7 +9,7 @@ import (
 
 // Error internal app errors
 type Error struct {
-	Status int   `json:"status"`
+	Status int   `json:"-"`
 	Err    error `json:"error"`
 }
 
