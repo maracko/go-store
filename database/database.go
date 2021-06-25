@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sync"
 )
@@ -48,8 +49,10 @@ func (d *DB) Connect() error {
 			return errors.New(err.Error())
 		}
 		// write empty valid json to file
-		// TODO: error check
-		_, _ = f.WriteString("{}")
+		_, err = f.WriteString("{}")
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	// Read newly created file
@@ -162,4 +165,29 @@ func (d *DB) Delete(key string) error {
 
 	delete(d.database, key)
 	return nil
+}
+
+func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	res := make(map[string]interface{})
+
+	del := make(map[string]bool, 1)
+	del["deleted"] = true
+
+	err := make(map[string]string, 1)
+	err["error"] = "key doesn't exist"
+
+	for _, key := range keys {
+		if _, ok := d.database[key]; !ok {
+			res[key] = err
+		} else {
+			delete(d.database, key)
+			res[key] = del
+		}
+
+	}
+
+	return res
 }
