@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/maracko/go-store/errors"
@@ -13,12 +14,17 @@ func JSONEncode(w http.ResponseWriter, b interface{}) {
 
 	e, ok := b.(errors.Error)
 	if ok {
-		b, _ := json.Marshal(e)
+		b, err := json.Marshal(e)
+		if err != nil {
+			log.Println(err)
+		}
 		w.WriteHeader(e.Status)
 		w.Write(b)
 		return
 	}
 
-	// TODO: check error
-	_ = json.NewEncoder(w).Encode(b)
+	err := json.NewEncoder(w).Encode(b)
+	if err != nil {
+		log.Println(err)
+	}
 }
