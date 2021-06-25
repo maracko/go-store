@@ -6,7 +6,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sync"
 )
+
+// DB represents the database struct
+type DB struct {
+	location string
+	database map[string]interface{}
+	memory   bool
+	mu       sync.Mutex
+}
 
 // New initializes a database to a given location and sets it's internal DB to an empty map
 func New(location string, memory bool) *DB {
@@ -15,13 +24,6 @@ func New(location string, memory bool) *DB {
 		database: make(map[string]interface{}),
 		memory:   memory,
 	}
-}
-
-// DB represents the database struct
-type DB struct {
-	location string
-	database map[string]interface{}
-	memory   bool
 }
 
 // Connect connects to file and saves it's contents to database field
@@ -40,7 +42,7 @@ func (d *DB) Connect() error {
 	// create new if doesn't exist
 	if err != nil {
 		f, err := os.Create(d.location)
-
+		defer f.Close()
 		// return in case of error
 		if err != nil {
 			return errors.New(err.Error())
@@ -48,7 +50,6 @@ func (d *DB) Connect() error {
 		// write empty valid json to file
 		// TODO: error check
 		_, _ = f.WriteString("{}")
-		f.Close()
 	}
 
 	// Read newly created file
@@ -94,6 +95,8 @@ func (d *DB) Disconnect() error {
 
 // Create creates a new record
 func (d *DB) Create(key string, value interface{}) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if _, ok := d.database[key]; ok {
 		return errors.New("key already exists")
 	}
@@ -103,6 +106,8 @@ func (d *DB) Create(key string, value interface{}) error {
 
 // Read reads from a single key
 func (d *DB) Read(key string) (interface{}, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if _, ok := d.database[key]; !ok {
 		return nil, errors.New("key doesn't exist")
 	}
@@ -111,6 +116,8 @@ func (d *DB) Read(key string) (interface{}, error) {
 
 // ReadMany returns multiple keys
 func (d *DB) ReadMany(keys ...string) map[string]interface{} {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	results := make(map[string]interface{})
 	for _, k := range keys {
 		if v, ok := d.database[k]; !ok {
@@ -124,6 +131,8 @@ func (d *DB) ReadMany(keys ...string) map[string]interface{} {
 
 // ReadAll returns all entries from DB
 func (d *DB) ReadAll() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	str := ""
 	for k, v := range d.database {
 		str += fmt.Sprintf("%v => %v\n", k, v)
@@ -133,6 +142,8 @@ func (d *DB) ReadAll() string {
 
 // Update updates a single entry
 func (d *DB) Update(key string, value interface{}) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if _, ok := d.database[key]; !ok {
 		return errors.New("key doesn't exist")
 	}
@@ -143,6 +154,8 @@ func (d *DB) Update(key string, value interface{}) error {
 
 // Delete deletes a single entry
 func (d *DB) Delete(key string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if _, ok := d.database[key]; !ok {
 		return errors.New("key doesn't exist")
 	}
