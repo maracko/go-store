@@ -41,12 +41,12 @@ go-store [command] [argument] --flags
 ```
 go-store server HTTP -p 8888 -l /home/mario/database.json
 ```
-This command will open and read the json file provided under `-l` flag and start a HTTP server on `-p`  
+This command will open and read the json file provided under `-l` flag and start a HTTP server on port `-p`  
 You can then send HTTP requests to the server  
-Logs will be outputed to stdout
+Logs will be outputed to stdout in format `Time` `Method` `URL` `Host`
 ```
 2021/05/02 18:54:02 HTTP server started
-2021/05/02 18:54:22 GET /go-store?key=aa localhost:8888
+2021/05/02 18:54:22 GET /testKey localhost:8888
 ```
 
 ### Server flags
@@ -56,27 +56,48 @@ Logs will be outputed to stdout
 - **--memory -m** => if present database won't be saved upon exit (even if read from a file first)
 <br>
 
-### HTTP Requests
+### **HTTP Requests**
 <br>
 
- **http://{host}:{port}/go-store?key=key**
+ **http://{host}:{port}/{key}**
 <br>
 
 - GET => returns key/keys
 - POST => creates a new key
 - PATCH => update existing key
-- DELETE => deletes a key
+- DELETE => delete key/keys
 
-For retrieving operations a query param `key` must be set. To retrieve multiple values set multiple keys split with a comma
+For retrieving operations just add key/key's in the URI path. To retrieve multiple values set multiple keys split with a comma
 <br>
-
-### Example:  
- **GET**  `http://localhost:8888/go-store?key=myKey,myOtherKey,anotherKey`
-<br> 
 
 ### Data
 
 When you want to create/update keys you must send data inside request **body in JSON format**.
+### Example:  
+ **GET**  
+ `http://localhost:8888/myKey`  
+ or  
+ `http://localhost:8888/myKey,myOtherKey,anotherKey`  
+
+ **POST**  
+ `http://localhost:8888`  
+ *BODY* = {
+   "key": "myKey",
+   "value": "myValue"
+ }  
+ **PATCH**  
+ `http://localhost:8888`  
+ *BODY* = {
+   "key": "myKey",
+   "value": "myNewValue"
+ }  
+ **DELETE**  
+ `http://localhost:8888/myKey`  
+  or   
+  `http://localhost:8888/myKey,myOtherKey,anotherKey`  
+<br> 
+
+
 <br>
 
 ## TCP
@@ -101,7 +122,7 @@ $:get foo
 bar
 $:
 ```
-**TCP currently only supports strings for both key and value, a.k.a will do no encoding on them (so no complex types)**  
+**TCP currently only supports strings for both key and value, and will do no encoding on them (so no complex types)**  
 <br>
 
 
@@ -119,7 +140,5 @@ $:
 
 - Make TCP client/server support complex types and commands
 - Support HTTPS for HTTP server
-- Add authorization support
-- TODO in comment
 - Other things I will think of
 
