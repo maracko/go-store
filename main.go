@@ -15,7 +15,9 @@ limitations under the License.
 */
 package main
 
-import "github.com/maracko/go-store/cmd"
+import (
+	"github.com/maracko/go-store/cmd"
+)
 
 func main() {
 	cmd.Execute()
