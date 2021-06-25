@@ -42,8 +42,7 @@ func (s *httpServer) Clean() error {
 func (s *httpServer) Serve() {
 	// Map of all endpoints
 	endpoints := map[string]http.HandlerFunc{
-		// TODO: is path needed
-		"/go-store": s.handle,
+		"/": s.handle,
 	}
 
 	// Add middleware from []commonMiddleware to each endpoint
@@ -59,41 +58,52 @@ func (s *httpServer) Serve() {
 
 	// Write and close file on exit
 	defer func() {
-		// TODO: check error
-		_ = s.db.Disconnect()
+		if err = s.db.Disconnect(); err != nil {
+			log.Println(err)
+		}
 	}()
 
-	// TODO: check error
-	_ = http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil)
+	if err = http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil); err != nil {
+		log.Fatalln(err)
+	}
 }
 
 // Handle appropriate func based on method and params
 func (s *httpServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		key, ok := r.URL.Query()["key"]
+		keys := helpers.ExtractKeys(r)
 
-		if !ok || len(key[0]) < 1 {
+		switch {
+		case len(keys) == 0:
 			helpers.JSONEncode(w, errors.BadRequest("missing key"))
 			return
-		}
-
-		keys := strings.Split(key[0], ",")
-
-		if len(keys) == 1 {
+		case len(keys) == 1:
 			s.read(w, r)
 			return
+		case len(keys) > 1:
+			s.readMany(w, r)
+			return
 		}
-
-		s.readMany(w, r)
-		return
 
 	case "POST":
 		s.create(w, r)
 	case "PATCH":
 		s.update(w, r)
 	case "DELETE":
-		s.delete(w, r)
+		keys := helpers.ExtractKeys(r)
+
+		switch {
+		case len(keys) == 0:
+			helpers.JSONEncode(w, errors.BadRequest("missing key"))
+			return
+		case len(keys) == 1:
+			s.delete(w, r)
+			return
+		case len(keys) > 1:
+			s.deleteMany(w, r)
+		}
+
 	default:
 		helpers.JSONEncode(w, errors.MethodNotAllowed("method %s not allowed", r.Method))
 	}
@@ -101,23 +111,21 @@ func (s *httpServer) handle(w http.ResponseWriter, r *http.Request) {
 
 // Read read database key
 func (s *httpServer) read(w http.ResponseWriter, r *http.Request) {
-	key := r.URL.Query()["key"]
+	key := strings.TrimPrefix(r.URL.Path, "/")
 
-	val, err := s.db.Read(key[0])
+	val, err := s.db.Read(key)
 	if err != nil {
 		helpers.JSONEncode(w, errors.NotFoundWrap(err, "not found"))
 		return
 	}
 
-	// TODO: check error
-	_ = json.NewEncoder(w).Encode(resource{key[0], val})
+	helpers.JSONEncode(w, resource{key, val})
 }
 
 // ReadMany read many records
 func (s *httpServer) readMany(w http.ResponseWriter, r *http.Request) {
-	key := r.URL.Query()["key"]
 
-	keys := strings.Split(key[0], ",")
+	keys := helpers.ExtractKeys(r)
 
 	empty := true
 	for _, k := range keys {
@@ -126,24 +134,31 @@ func (s *httpServer) readMany(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// If all keys are empty return
 	if empty == true {
 		helpers.JSONEncode(w, errors.NotFound("all keys are empty"))
 		return
 	}
 
-	val := s.db.ReadMany(keys...)
-	// TODO: check error
-	_ = json.NewEncoder(w).Encode(val)
+	res := s.db.ReadMany(keys...)
+	resp := []resource{}
+
+	for k, v := range res {
+		resp = append(resp, resource{k, v})
+	}
+	helpers.JSONEncode(w, resp)
 }
 
 // Create create new value
 func (s *httpServer) create(w http.ResponseWriter, r *http.Request) {
 	var res resource
+	var multiRes []resource
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, &res); err != nil {
-		helpers.JSONEncode(w, errors.InternalWrap(err, "unmarshal error"))
-		return
+		err = json.Unmarshal(b, &multiRes)
+		if err != nil {
+			helpers.JSONEncode(w, errors.InternalWrap(err, "unmarshal error"))
+			return
+		}
 	}
 
 	if err := s.db.Create(res.Key, res.Value); err != nil {
@@ -164,7 +179,7 @@ func (s *httpServer) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.db.Update(res.Key, res.Value); err != nil {
-		helpers.JSONEncode(w, err)
+		helpers.JSONEncode(w, errors.BadRequestWrap(err, "update error"))
 		return
 	}
 
@@ -181,11 +196,48 @@ func (s *httpServer) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.db.Delete(res.Key); err != nil {
-		helpers.JSONEncode(w, err)
+		helpers.JSONEncode(w, errors.NotFoundWrap(err, "delete error"))
 		return
 	}
 
-	val := make(map[string]interface{})
-	val["deleted"] = true
-	helpers.JSONEncode(w, resource{res.Key, val})
+	del := make(map[string]bool)
+	del["deleted"] = true
+	helpers.JSONEncode(w, resource{res.Key, del})
+}
+
+func (s *httpServer) deleteMany(w http.ResponseWriter, r *http.Request) {
+
+	keys := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), ",")
+
+	res := s.db.DeleteMany(keys...)
+
+	delFlag := false
+	errFlag := false
+	// Set flags so we can show appropriate status code
+	for _, v := range res {
+		err, ok := v.(map[string]string)
+		if ok {
+			if _, ok := err["error"]; ok {
+				errFlag = true
+			}
+		}
+		del, ok := v.(map[string]bool)
+		if ok {
+			if _, ok := del["deleted"]; ok {
+				delFlag = true
+			}
+		}
+	}
+
+	if errFlag && delFlag {
+		w.WriteHeader(http.StatusMultiStatus)
+	} else if errFlag && !delFlag {
+		w.WriteHeader(http.StatusNotFound)
+	}
+
+	resp := []resource{}
+	for k, v := range res {
+		resp = append(resp, resource{k, v})
+	}
+	helpers.JSONEncode(w, resp)
 }
