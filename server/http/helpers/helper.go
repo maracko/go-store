@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/maracko/go-store/errors"
 )
@@ -27,4 +28,11 @@ func JSONEncode(w http.ResponseWriter, b interface{}) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+//Return an array of keys(everything after / in url path), they are strings
+func ExtractKeys(r *http.Request) []string {
+	key := strings.TrimPrefix(r.URL.Path, "/")
+	keys := strings.Split(key, ",")
+	return keys
 }
