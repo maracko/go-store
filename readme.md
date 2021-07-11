@@ -19,9 +19,15 @@ This is a hobby project and not meant for production use, but could be useful fo
 <br>  
 
 ## Installation
-
+ 
+Go 1.15 and newer
 ```
-go install github.com/maracko/go-store
+go install github.com/maracko/go-store@latest
+```
+
+Go versions older then 1.15
+```
+go get -u github.com/maracko/go-store
 ```
 
 ## Usage
