@@ -6,9 +6,13 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
+
+var exec string
 
 // clientCmd represents the client command
 var clientCmd = &cobra.Command{
@@ -23,6 +27,11 @@ var clientCmd = &cobra.Command{
 			log.Fatalln(err)
 		}
 		defer conn.Close()
+
+		if exec != "" {
+			execCommands(conn)
+			return
+		}
 
 		fmt.Println("Welcome to go-store server!")
 		log.Printf("Connected to %v:%v", host, port)
@@ -47,9 +56,29 @@ var clientCmd = &cobra.Command{
 	},
 }
 
+func execCommands(conn net.Conn) {
+	scanner := bufio.NewScanner(conn)
+	cmds := strings.Split(exec, ";")
+
+	for _, cmd := range cmds {
+		fmt.Fprintln(conn, cmd)
+		ok := scanner.Scan()
+		start := time.Now().UnixNano()
+		for !ok {
+			if time.Now().UnixNano()-start >= 30_000_000 {
+				fmt.Println("timeout")
+				return
+			}
+		}
+		fmt.Println(scanner.Text())
+	}
+}
+
 func init() {
 	rootCmd.AddCommand(clientCmd)
 
 	clientCmd.Flags().StringVarP(&host, "server", "s", "localhost", "Address of the server")
 	clientCmd.Flags().IntVarP(&port, "port", "p", 9999, "Port on which the server is running")
+	clientCmd.PersistentFlags().StringVarP(&exec, "command", "c", "", "directly exec command/s split by \";\"s")
+
 }
