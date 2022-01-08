@@ -1,73 +1,84 @@
 package database
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"sync"
+	"time"
+
+	"github.com/maracko/go-store/database/helpers"
+	"github.com/maracko/go-store/database/write"
 )
 
 // DB represents the database struct
 type DB struct {
-	location string
-	database map[string]interface{}
-	memory   bool
-	mu       sync.Mutex
+	location       string
+	database       map[string]interface{}
+	memory         bool
+	continousWrite bool
+	errRcv         chan error
+	jobSender      chan write.WriteData
+	writeService   *write.WriteService
+	mu             sync.Mutex
 }
 
-// New initializes a database to a given location and sets it's internal DB to an empty map
-func New(location string, memory bool) *DB {
+// New initializes a database to a given location and sets it's internal DB to an empty map or reads from file first
+func New(location string, memory bool, continousWrite bool, ec chan error) *DB {
+
+	jc := make(chan write.WriteData, 10)
+	ws := write.NewWriteService(location, jc, ec)
 	return &DB{
-		location: location,
-		database: make(map[string]interface{}),
-		memory:   memory,
+		location:       location,
+		database:       make(map[string]interface{}),
+		errRcv:         ec,
+		jobSender:      jc,
+		memory:         memory,
+		writeService:   ws,
+		continousWrite: continousWrite,
 	}
 }
 
 // Connect connects to file and saves it's contents to database field
 func (d *DB) Connect() error {
 	if d.database == nil {
-		return errors.New("must Init() the database first")
+		return errors.New("db not initialized")
 	}
 
-	if d.location == "" {
+	if d.location != "" {
+		if !helpers.FileExists(d.location) {
+			f, err := os.Create(d.location)
+			if err != nil {
+				return err
+			}
+			if _, err = f.WriteString("{}"); err != nil {
+				return err
+			}
+		}
+		db, err := helpers.ReadJsonToMap(d.location)
+		if err != nil {
+			return errors.New("cannot read file: " + err.Error())
+		}
+		d.database = db
+	}
+	if d.memory {
 		return nil
 	}
 
-	// try to read file
-	_, err := ioutil.ReadFile(d.location)
-
-	// create new if doesn't exist
-	if err != nil {
-		f, err := os.Create(d.location)
-		defer f.Close()
-		// return in case of error
+	go func() {
+		log.Println("Starting write service")
+		err := d.writeService.Serve()
 		if err != nil {
-			return errors.New(err.Error())
+			log.Println(err)
 		}
-		// write empty valid json to file
-		_, err = f.WriteString("{}")
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-
-	// Read newly created file
-	content, err := ioutil.ReadFile(d.location)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
-	// Unmarshal it's contents into in-memory database
-	err = json.Unmarshal(content, &d.database)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
+	}()
 	return nil
+}
+
+func (d *DB) NewWrite() {
+	data := write.NewWriteData(d.database)
+	d.jobSender <- data
 }
 
 // Disconnect encodes database with json and saves it to location if provided
@@ -76,23 +87,14 @@ func (d *DB) Disconnect() error {
 		return nil
 	}
 
-	jsonBody, err := json.Marshal(d.database)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
-	f, err := os.OpenFile(d.location, os.O_WRONLY, 0664)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
-	defer f.Close()
-
-	_, err = f.Write(jsonBody)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
+	writeFinished := make(chan bool)
+	go func() {
+		d.NewWrite()
+		writeFinished <- true
+	}()
+	<-writeFinished
+	time.Sleep(time.Millisecond * 500)
+	close(d.jobSender)
 	return nil
 }
 
@@ -104,6 +106,7 @@ func (d *DB) Create(key string, value interface{}) error {
 		return errors.New("key already exists")
 	}
 	d.database[key] = value
+	d.NewWrite()
 	return nil
 }
 
@@ -152,6 +155,7 @@ func (d *DB) Update(key string, value interface{}) error {
 	}
 
 	d.database[key] = value
+	d.NewWrite()
 	return nil
 }
 
@@ -164,6 +168,7 @@ func (d *DB) Delete(key string) error {
 	}
 
 	delete(d.database, key)
+	d.NewWrite()
 	return nil
 }
 
@@ -188,6 +193,6 @@ func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
 		}
 
 	}
-
+	d.NewWrite()
 	return res
 }

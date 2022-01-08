@@ -22,9 +22,10 @@ var serveTCPCmd = &cobra.Command{
 	If you have json file with data you want to read from but not save provide a location along with -m (memory) flag`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// create the server
+		errChan := make(chan error, 10)
 		s := tcp.New(
 			port,
-			database.New(location, memory),
+			database.New(location, memory, continousWrite, errChan),
 		)
 
 		done := make(chan os.Signal, 1)
@@ -34,13 +35,24 @@ var serveTCPCmd = &cobra.Command{
 		log.Println("TCP server started")
 		go s.Serve()
 
-		// Upon receiving a shutdown signal
-		<-done
-		fmt.Println("")
-		log.Println("Shutting down server")
-		err := s.Clean()
-		if err != nil {
-			log.Fatal(err)
+		for {
+			select {
+			// Upon receiving a shutdown signal
+			case <-done:
+				fmt.Println("")
+				log.Println("Shutting down server")
+				err := s.Clean()
+				if err != nil {
+					log.Fatal(err)
+				}
+				return
+			case err, ok := (<-errChan):
+				if !ok {
+					log.Println("Exiting")
+					return
+				}
+				log.Println("Error in write service:", err)
+			}
 		}
 	},
 }
