@@ -20,7 +20,7 @@ func JSONEncode(w http.ResponseWriter, b interface{}) {
 			log.Println(err)
 		}
 		w.WriteHeader(e.Status)
-		w.Write(b)
+		_, _ = w.Write(b)
 		return
 	}
 
@@ -30,7 +30,8 @@ func JSONEncode(w http.ResponseWriter, b interface{}) {
 	}
 }
 
-//Return an array of keys(everything after / in url path), they are strings
+//Return an array of keys(everything after / in url path),
+//they are strings split by a comma
 func ExtractKeys(r *http.Request) []string {
 	key := strings.TrimPrefix(r.URL.Path, "/")
 	keys := strings.Split(key, ",")
