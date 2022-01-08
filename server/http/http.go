@@ -20,7 +20,7 @@ type resource struct {
 }
 
 // New create new server
-func New(port int, db *database.DB) server.Server {
+func New(port int, db *database.DB, errChan chan error) server.Server {
 	return &httpServer{
 		port: port,
 		db:   db,
@@ -40,6 +40,7 @@ func (s *httpServer) Clean() error {
 
 // Serve starts the HTTP server
 func (s *httpServer) Serve() {
+
 	// Map of all endpoints
 	endpoints := map[string]http.HandlerFunc{
 		"/": s.handle,
@@ -131,10 +132,11 @@ func (s *httpServer) readMany(w http.ResponseWriter, r *http.Request) {
 	for _, k := range keys {
 		if k != "" {
 			empty = false
+			break
 		}
 	}
 
-	if empty == true {
+	if empty {
 		helpers.JSONEncode(w, errors.NotFound("all keys are empty"))
 		return
 	}
@@ -221,6 +223,7 @@ func (s *httpServer) deleteMany(w http.ResponseWriter, r *http.Request) {
 				errFlag = true
 			}
 		}
+
 		del, ok := v.(map[string]bool)
 		if ok {
 			if _, ok := del["deleted"]; ok {
