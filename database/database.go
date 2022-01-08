@@ -103,7 +103,7 @@ func (d *DB) Create(key string, value interface{}) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, ok := d.database[key]; ok {
-		return errors.New("key already exists")
+		return fmt.Errorf("%s already exists", key)
 	}
 	d.database[key] = value
 	d.NewWrite()
@@ -115,7 +115,7 @@ func (d *DB) Read(key string) (interface{}, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, ok := d.database[key]; !ok {
-		return nil, errors.New("key doesn't exist")
+		return nil, fmt.Errorf("%s doesn't exist", key)
 	}
 	return d.database[key], nil
 }
@@ -151,7 +151,7 @@ func (d *DB) Update(key string, value interface{}) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, ok := d.database[key]; !ok {
-		return errors.New("key doesn't exist")
+		return fmt.Errorf("%s doesn't exist", key)
 	}
 
 	d.database[key] = value
@@ -164,7 +164,7 @@ func (d *DB) Delete(key string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, ok := d.database[key]; !ok {
-		return errors.New("key doesn't exist")
+		return fmt.Errorf("%s doesn't exist", key)
 	}
 
 	delete(d.database, key)

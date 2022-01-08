@@ -31,7 +31,7 @@ type tcpServer struct {
 	db   *database.DB
 }
 
-// Clean clean server
+// Clean cleans a server
 func (s *tcpServer) Clean() error {
 	return s.db.Disconnect()
 }
@@ -89,22 +89,22 @@ func (s *tcpServer) command(input string) interface{} {
 			if err != nil {
 				return err
 			}
-			return fmt.Sprintf("Created new key %v", data[1])
+			return fmt.Sprintf("created %v", data[1])
 		}
-		return "Usage: [set] [key] [value]"
+		return "usage: [set] [key] [value]"
 	case "upd":
 		if l == 3 {
 			if err := s.db.Update(data[1], data[2]); err != nil {
 				return err
 			}
-			return fmt.Sprintf("Created key: %v to value: %v", data[1], data[2])
+			return fmt.Sprintf("updated %v", data[1])
 		}
-		return "Usage: [update] [key] [value]"
+		return "usage: [update] [key] [value]"
 	case "del":
 		if err := s.db.Delete(data[1]); err != nil {
 			return err
 		}
-		return fmt.Sprintf("Deleted key: %v", data[1])
+		return fmt.Sprintf("deleted %v", data[1])
 	}
 
 	return nil

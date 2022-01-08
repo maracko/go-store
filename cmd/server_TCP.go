@@ -58,5 +58,4 @@ var serveTCPCmd = &cobra.Command{
 }
 
 func init() {
-
 }
