@@ -12,11 +12,12 @@ import (
 )
 
 type WriteService struct {
-	LastWrite time.Time
-	JobsChan  chan WriteData
-	ErrChan   chan error
-	Path      string
-	mu        sync.Mutex
+	LastWrite     time.Time
+	JobsChan      chan WriteData
+	writesSkipped int
+	ErrChan       chan error
+	Path          string
+	mu            sync.Mutex
 }
 
 func NewWriteService(path string, jobs chan WriteData, errs chan error) *WriteService {
@@ -42,6 +43,11 @@ func (s *WriteService) write(job *WriteData) error {
 	if !job.Time.After(s.LastWrite) {
 		return nil
 	}
+	if len(s.JobsChan) > 1 && s.writesSkipped < 5 {
+		s.writesSkipped++
+		return nil
+	}
+
 	data, err := json.Marshal(job.Data)
 	if err != nil {
 		return errors.New("marshall error: " + err.Error())
@@ -50,6 +56,8 @@ func (s *WriteService) write(job *WriteData) error {
 	if err != nil {
 		return errors.New("write error: " + err.Error())
 	}
+
+	s.writesSkipped = 0
 	return nil
 }
 
@@ -57,16 +65,19 @@ func (s *WriteService) Serve() error {
 	for {
 		select {
 		case job, ok := (<-s.JobsChan):
-			if !ok {
-				close(s.ErrChan)
-				return errors.New("job channel closed")
-			}
-
 			go func() {
 				if err := s.write(&job); err != nil {
 					s.ErrChan <- err
 				}
 			}()
+
+			if !ok {
+				close(s.ErrChan)
+				return errors.New("job channel closed")
+			}
+
+			time.Sleep(time.Second * 2)
+
 		default:
 			continue
 		}

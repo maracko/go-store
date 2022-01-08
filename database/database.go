@@ -27,7 +27,7 @@ type DB struct {
 // New initializes a database to a given location and sets it's internal DB to an empty map or reads from file first
 func New(location string, memory bool, continousWrite bool, ec chan error) *DB {
 
-	jc := make(chan write.WriteData, 10)
+	jc := make(chan write.WriteData, 2)
 	ws := write.NewWriteService(location, jc, ec)
 	return &DB{
 		location:       location,

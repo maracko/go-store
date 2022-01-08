@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/server/http"
@@ -52,6 +53,8 @@ var serveHTTPCmd = &cobra.Command{
 					return
 				}
 				log.Println("Error in write service:", err)
+			default:
+				time.Sleep(time.Millisecond * 500)
 			}
 		}
 	},
