@@ -33,7 +33,7 @@ var serveHTTPCmd = &cobra.Command{
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 		log.Printf("HTTP server started on port %d", port)
-		go s.Serve()
+		go s.Serve(tlsSCert, privateKey, key)
 
 		for {
 			select {
@@ -55,4 +55,13 @@ var serveHTTPCmd = &cobra.Command{
 			}
 		}
 	},
+}
+var tlsSCert string
+var privateKey string
+var key string
+
+func init() {
+	serverCmd.PersistentFlags().StringVar(&tlsSCert, "certificate", "", "Certificate for your server. If signed by CA, must concatenate thems. Might need root to run")
+	serverCmd.PersistentFlags().StringVar(&privateKey, "private-key", "", "Your private key")
+	serverCmd.PersistentFlags().StringVarP(&key, "key", "k", "", `Auth. key. It needs to be sent in the "Authorization" header on every request`)
 }

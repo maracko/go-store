@@ -5,22 +5,29 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/errors"
-	"github.com/maracko/go-store/server"
 	"github.com/maracko/go-store/server/http/helpers"
 )
+
+var key string
 
 type resource struct {
 	Key   string      `json:"key"`
 	Value interface{} `json:"value"`
 }
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 // New create new server
-func New(port int, db *database.DB, errChan chan error) server.Server {
+func New(port int, db *database.DB, errChan chan error) *httpServer {
 	return &httpServer{
 		port: port,
 		db:   db,
@@ -39,7 +46,9 @@ func (s *httpServer) Clean() error {
 }
 
 // Serve starts the HTTP server
-func (s *httpServer) Serve() {
+func (s *httpServer) Serve(cert, pKey, authKey string) {
+
+	key = authKey
 
 	// Map of all endpoints
 	endpoints := map[string]http.HandlerFunc{
@@ -63,6 +72,16 @@ func (s *httpServer) Serve() {
 			log.Println(err)
 		}
 	}()
+
+	if cert != "" && pKey != "" {
+		go func() {
+			//TODO - add dynamic port number
+			if err := http.ListenAndServeTLS(fmt.Sprintf(":%d", 3280), cert, pKey, nil); err != nil {
+				log.Fatalln(err)
+			}
+		}()
+		log.Println("HTTPS server started on port", 3820)
+	}
 
 	if err = http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil); err != nil {
 		log.Fatalln(err)

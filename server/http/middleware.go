@@ -3,6 +3,9 @@ package http
 import (
 	"log"
 	"net/http"
+
+	"github.com/maracko/go-store/errors"
+	"github.com/maracko/go-store/server/http/helpers"
 )
 
 type middleware func(http.HandlerFunc) http.HandlerFunc
@@ -10,12 +13,27 @@ type middleware func(http.HandlerFunc) http.HandlerFunc
 var commonMiddleware = []middleware{
 	logMiddleWare,
 	jsonHeader,
+	authMiddleWare,
 }
 
 func logMiddleWare(h http.HandlerFunc) http.HandlerFunc {
+	if key != "" {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Println(r.Method, r.URL, r.Host)
+			h.ServeHTTP(w, r)
+		})
+	}
+	return h
+}
+
+func authMiddleWare(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println(r.Method, r.URL, r.Host)
-		h.ServeHTTP(w, r)
+		header := r.Header.Get("Authorization")
+		if header != key {
+			helpers.JSONEncode(w, errors.Unauthorized("invalid key"))
+		} else {
+			h.ServeHTTP(w, r)
+		}
 	})
 }
 
