@@ -58,6 +58,7 @@ func (s *WriteService) write(job *WriteData) error {
 	}
 
 	s.writesSkipped = 0
+	s.LastWrite = time.Now()
 	return nil
 }
 
@@ -76,7 +77,7 @@ func (s *WriteService) Serve() error {
 				return errors.New("job channel closed")
 			}
 
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * 10)
 
 		default:
 			continue

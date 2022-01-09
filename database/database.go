@@ -47,7 +47,7 @@ func (d *DB) Connect() error {
 	}
 
 	if d.location != "" {
-		if !helpers.FileExists(d.location) {
+		if !helpers.FileExists(d.location) && !d.memory {
 			f, err := os.Create(d.location)
 			if err != nil {
 				return err
@@ -61,22 +61,25 @@ func (d *DB) Connect() error {
 			return errors.New("cannot read file: " + err.Error())
 		}
 		d.database = db
-	}
-	if d.memory {
-		return nil
+
+		if d.memory {
+			return nil
+		}
+
+		go func() {
+			log.Println("Starting write service")
+			err := d.writeService.Serve()
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}()
 	}
 
-	go func() {
-		log.Println("Starting write service")
-		err := d.writeService.Serve()
-		if err != nil {
-			log.Println(err)
-		}
-	}()
 	return nil
 }
 
-func (d *DB) NewWrite() {
+// newWrite sends a copy of database to write job queue
+func (d *DB) newWrite() {
 	data := write.NewWriteData(d.database)
 	d.jobSender <- data
 }
@@ -89,7 +92,7 @@ func (d *DB) Disconnect() error {
 
 	writeFinished := make(chan bool)
 	go func() {
-		d.NewWrite()
+		d.newWrite()
 		writeFinished <- true
 	}()
 	<-writeFinished
@@ -106,7 +109,7 @@ func (d *DB) Create(key string, value interface{}) error {
 		return fmt.Errorf("%s already exists", key)
 	}
 	d.database[key] = value
-	d.NewWrite()
+	d.newWrite()
 	return nil
 }
 
@@ -155,7 +158,7 @@ func (d *DB) Update(key string, value interface{}) error {
 	}
 
 	d.database[key] = value
-	d.NewWrite()
+	d.newWrite()
 	return nil
 }
 
@@ -168,7 +171,7 @@ func (d *DB) Delete(key string) error {
 	}
 
 	delete(d.database, key)
-	d.NewWrite()
+	d.newWrite()
 	return nil
 }
 
@@ -193,6 +196,6 @@ func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
 		}
 
 	}
-	d.NewWrite()
+	d.newWrite()
 	return res
 }
