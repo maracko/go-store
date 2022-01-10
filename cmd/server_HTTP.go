@@ -23,18 +23,23 @@ var serveHTTPCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create the server
 		errChan := make(chan error, 5)
+		writeDone := make(chan bool)
+		done := make(chan os.Signal, 1)
+
 		s := http.New(
 			port,
-			database.New(location, memory, continousWrite, errChan),
-			errChan,
+			tlsPort,
+			token,
+			pKey,
+			cert,
+			database.New(location, memory, continousWrite, errChan, writeDone),
 		)
 
-		done := make(chan os.Signal, 1)
 		// Route shutdown signals to done channel
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 		log.Printf("HTTP server started on port %d", port)
-		go s.Serve(tlsSCert, privateKey, key)
+		go s.Serve()
 
 		for {
 			select {
@@ -42,29 +47,33 @@ var serveHTTPCmd = &cobra.Command{
 			case <-done:
 				fmt.Println("")
 				log.Println("Shutting down server")
-				err := s.Clean()
-				if err != nil {
-					log.Fatal(err)
-				}
+				go func() {
+					err := s.Clean()
+					if err != nil {
+						log.Fatal(err)
+					}
+				}()
+				<-writeDone
 				return
 			case err, ok := (<-errChan):
-				if !ok {
-					log.Println("Exiting")
-					return
-				}
 				log.Println("Error in write service:", err)
+				if !ok {
+					log.Println("Write service stopped")
+				}
 			default:
 				time.Sleep(time.Millisecond * 500)
 			}
 		}
 	},
 }
-var tlsSCert string
-var privateKey string
-var key string
+var cert string
+var pKey string
+var tlsPort int
+var token string
 
 func init() {
-	serverCmd.PersistentFlags().StringVar(&tlsSCert, "certificate", "", "Certificate for your server. If signed by CA, must concatenate thems. Might need root to run")
-	serverCmd.PersistentFlags().StringVar(&privateKey, "private-key", "", "Your private key")
-	serverCmd.PersistentFlags().StringVarP(&key, "key", "k", "", `Auth. key. It needs to be sent in the "Authorization" header on every request`)
+	serveHTTPCmd.PersistentFlags().StringVar(&cert, "certificate", "", "Certificate location for your server. If signed by CA, must concatenate thems")
+	serveHTTPCmd.PersistentFlags().StringVar(&pKey, "private-key", "", "Your private key location")
+	serveHTTPCmd.PersistentFlags().IntVar(&tlsPort, "tls-port", 9999, "Port on which HTTPS will be served")
+	serveHTTPCmd.PersistentFlags().StringVarP(&token, "token", "t", "", `Auth. key. It needs to be sent in the "Authorization" header on every request`)
 }

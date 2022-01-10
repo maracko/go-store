@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/maracko/go-store/database/helpers"
 	"github.com/maracko/go-store/database/write"
@@ -18,22 +17,22 @@ type DB struct {
 	database       map[string]interface{}
 	memory         bool
 	continousWrite bool
-	errRcv         chan error
-	jobSender      chan write.WriteData
+	errChan        chan error
+	jobsChan       chan write.WriteData
 	writeService   *write.WriteService
 	mu             sync.Mutex
 }
 
 // New initializes a database to a given location and sets it's internal DB to an empty map or reads from file first
-func New(location string, memory bool, continousWrite bool, ec chan error) *DB {
+func New(location string, memory bool, continousWrite bool, ec chan error, wd chan bool) *DB {
 
 	jc := make(chan write.WriteData, 2)
-	ws := write.NewWriteService(location, jc, ec)
+	ws := write.NewWriteService(location, jc, ec, wd)
 	return &DB{
 		location:       location,
 		database:       make(map[string]interface{}),
-		errRcv:         ec,
-		jobSender:      jc,
+		errChan:        ec,
+		jobsChan:       jc,
 		memory:         memory,
 		writeService:   ws,
 		continousWrite: continousWrite,
@@ -81,7 +80,7 @@ func (d *DB) Connect() error {
 // newWrite sends a copy of database to write job queue
 func (d *DB) newWrite() {
 	data := write.NewWriteData(d.database)
-	d.jobSender <- data
+	d.jobsChan <- data
 }
 
 // Disconnect encodes database with json and saves it to location if provided
@@ -90,14 +89,8 @@ func (d *DB) Disconnect() error {
 		return nil
 	}
 
-	writeFinished := make(chan bool)
-	go func() {
-		d.newWrite()
-		writeFinished <- true
-	}()
-	<-writeFinished
-	time.Sleep(time.Millisecond * 500)
-	close(d.jobSender)
+	d.newWrite()
+	close(d.jobsChan)
 	return nil
 }
 

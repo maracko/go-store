@@ -9,17 +9,20 @@ import (
 )
 
 var port int
+var tlsPort int
 var db *database.DB
 var s httpServer
 var path string
 
 func init() {
 	port = 8888
+	tlsPort = 9999
 	errChan := make(chan error, 10)
+	dc := make(chan bool)
 	path = ".test.file"
 
-	db = database.New(path, false, true, errChan)
-	s = *New(port, db, errChan)
+	db = database.New(path, false, true, errChan, dc)
+	s = *New(port, tlsPort, "", "", "", db)
 }
 
 func TestConnect(t *testing.T) {

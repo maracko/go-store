@@ -24,12 +24,14 @@ var serveTCPCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create the server
 		errChan := make(chan error, 10)
+		writeDone := make(chan bool)
+		done := make(chan os.Signal, 1)
+
 		s := tcp.New(
 			port,
-			database.New(location, memory, continousWrite, errChan),
+			database.New(location, memory, continousWrite, errChan, writeDone),
 		)
 
-		done := make(chan os.Signal, 1)
 		// Route shutdown signals to done channel
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
@@ -42,17 +44,19 @@ var serveTCPCmd = &cobra.Command{
 			case <-done:
 				fmt.Println("")
 				log.Println("Shutting down server")
-				err := s.Clean()
-				if err != nil {
-					log.Fatal(err)
-				}
+				go func() {
+					err := s.Clean()
+					if err != nil {
+						log.Fatal(err)
+					}
+				}()
+				<-writeDone
 				return
 			case err, ok := (<-errChan):
-				if !ok {
-					log.Println("Exiting")
-					return
-				}
 				log.Println("Error in write service:", err)
+				if !ok {
+					log.Println("Write service stopped")
+				}
 			default:
 				time.Sleep(time.Millisecond * 500)
 			}
