@@ -67,29 +67,38 @@ func (d *DB) Connect() error {
 
 		go func() {
 			log.Println("Starting write service")
-			err := d.writeService.Serve()
-			if err != nil {
-				log.Fatalln(err)
-			}
+			d.writeService.Serve()
 		}()
 	}
 
 	return nil
 }
 
-// newWrite sends a copy of database to write job queue
-func (d *DB) newWrite() {
-	data := write.NewWriteData(d.database)
+// NewWrite sends a copy of database to write job queue
+func (d *DB) NewWrite() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	sendData := map[string]interface{}{}
+	for k, v := range d.database {
+		sendData[k] = v
+	}
+	data := write.NewWriteData(sendData)
 	d.jobsChan <- data
 }
 
 // Disconnect encodes database with json and saves it to location if provided
 func (d *DB) Disconnect() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if len(d.database) == 0 || d.location == "" || d.memory {
 		return nil
 	}
 
-	d.newWrite()
+	go d.NewWrite()
+	//Send shutdown signal to write service
+	d.writeService.WritesDone <- true
+	//Wait until write service has finished
+	<-d.writeService.WritesDone
 	close(d.jobsChan)
 	return nil
 }
@@ -102,7 +111,9 @@ func (d *DB) Create(key string, value interface{}) error {
 		return fmt.Errorf("%s already exists", key)
 	}
 	d.database[key] = value
-	d.newWrite()
+	if d.continousWrite {
+		go d.NewWrite()
+	}
 	return nil
 }
 
@@ -151,7 +162,9 @@ func (d *DB) Update(key string, value interface{}) error {
 	}
 
 	d.database[key] = value
-	d.newWrite()
+	if d.continousWrite {
+		go d.NewWrite()
+	}
 	return nil
 }
 
@@ -164,7 +177,9 @@ func (d *DB) Delete(key string) error {
 	}
 
 	delete(d.database, key)
-	d.newWrite()
+	if d.continousWrite {
+		go d.NewWrite()
+	}
 	return nil
 }
 
@@ -189,6 +204,8 @@ func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
 		}
 
 	}
-	d.newWrite()
+	if d.continousWrite {
+		go d.NewWrite()
+	}
 	return res
 }

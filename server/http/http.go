@@ -70,13 +70,6 @@ func (s *httpServer) Serve() {
 		log.Fatal(err.Error())
 	}
 
-	// Write and close file on exit
-	defer func() {
-		if err = s.db.Disconnect(); err != nil {
-			log.Println(err)
-		}
-	}()
-
 	if s.pKey != "" && s.cert != "" {
 		go func() {
 			if err := http.ListenAndServeTLS(fmt.Sprintf(":%d", s.tlsPort), s.cert, s.pKey, nil); err != nil {
