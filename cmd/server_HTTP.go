@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/maracko/go-store/database"
@@ -37,22 +37,25 @@ var serveHTTPCmd = &cobra.Command{
 		// Route shutdown signals to done channel
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
+		srvDone := sync.WaitGroup{}
+		s.Serve(&srvDone)
+		srvDone.Add(1)
+		if pKey != "" && cert != "" {
+			srvDone.Add(1)
+		}
 		log.Printf("HTTP server started on port %d", port)
-		go s.Serve()
 
 		for {
 			select {
 			// Upon receiving a shutdown signal
 			case <-done:
-				fmt.Println("")
-				fmt.Println("Shutting down server")
-				s.Clean()
-				return
-			case err, ok := (<-errChan):
-				log.Println("Error in write service:", err)
-				if !ok {
-					log.Println("Write service stopped")
+				log.Println("Shutting down server")
+				if err := s.Clean(); err != nil {
+					log.Fatalln("Dirty shutdown:", err)
 				}
+				return
+			case err := (<-errChan):
+				log.Println("Error in write service:", err)
 			}
 		}
 	},

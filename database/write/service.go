@@ -3,7 +3,6 @@ package write
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -13,9 +12,8 @@ import (
 )
 
 type WriteService struct {
-	LastWrite time.Time
-	JobsChan  chan WriteData
-	// writesSkipped int
+	LastWrite  time.Time
+	JobsChan   chan WriteData
 	WritesDone chan bool
 	ErrChan    chan error
 	Path       string
@@ -29,7 +27,7 @@ func NewWriteService(path string, jobs chan WriteData, errs chan error, wd chan 
 		if !exists {
 			writeable := os.WriteFile(path, []byte("{}"), 0777)
 			if writeable != nil {
-				log.Fatalln("file not writeable")
+				log.Fatalln("file not writeable:", writeable)
 			}
 		}
 	}
@@ -52,35 +50,38 @@ func (s *WriteService) write(job *WriteData) error {
 
 	data, err := json.Marshal(job.Data)
 	if err != nil {
-		return errors.New("marshall error: " + err.Error())
+		return errors.New("marshal error: " + err.Error())
 	}
 	err = os.WriteFile(s.Path, data, 0777)
 	if err != nil {
 		return errors.New("write error: " + err.Error())
 	}
 	s.LastWrite = time.Now()
-	fmt.Println("WROTE")
 	return nil
 }
 
 func (s *WriteService) Serve() {
 	if s.Path == "" {
+		//If no path, service just returns the signal that it is done
 		s.WritesDone <- true
 		return
 	}
 	for {
 		select {
 		case <-s.WritesDone:
-			fmt.Println("Shutting down writing service")
-			if len(s.JobsChan) > 0 {
-				lastJob := &WriteData{}
-				for data := range s.JobsChan {
-					lastJob = &data
-				}
-				if err := s.write(lastJob); err != nil {
-					s.ErrChan <- err
+			log.Println("Shutting down writing service")
+		jobLoop:
+			for {
+				select {
+				case job := <-s.JobsChan:
+					if err := s.write(&job); err != nil {
+						s.ErrChan <- err
+					}
+				case <-time.After(time.Millisecond * 500):
+					break jobLoop
 				}
 			}
+			log.Println("Last write completed")
 			close(s.ErrChan)
 			s.WritesDone <- true
 		case job := (<-s.JobsChan):

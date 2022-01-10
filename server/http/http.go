@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -8,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/maracko/go-store/database"
@@ -28,6 +30,9 @@ func init() {
 
 // New create new server
 func New(port, tlsPort int, token, pKey, cert string, db *database.DB) *httpServer {
+	srv := &http.Server{
+		Addr: ":" + fmt.Sprint(port),
+	}
 	return &httpServer{
 		port:    port,
 		tlsPort: tlsPort,
@@ -35,6 +40,7 @@ func New(port, tlsPort int, token, pKey, cert string, db *database.DB) *httpServ
 		pKey:    pKey,
 		cert:    cert,
 		db:      db,
+		srv:     srv,
 	}
 }
 
@@ -43,15 +49,29 @@ type httpServer struct {
 	port, tlsPort     int
 	token, pKey, cert string
 	db                *database.DB
+	srv               *http.Server
 }
 
 // Clean clean server
 func (s *httpServer) Clean() error {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-time.After(time.Millisecond * 1500)
+		cancel()
+	}()
+
+	err := s.srv.Shutdown(ctx)
+	if err != nil {
+		log.Println("server error:", err)
+	}
+	log.Println("HTTP/S shut down")
+
 	return s.db.Disconnect()
 }
 
 // Serve starts the HTTP server
-func (s *httpServer) Serve() {
+func (s *httpServer) Serve(wg *sync.WaitGroup) {
 	key = s.token
 
 	// Map of all endpoints
@@ -64,7 +84,6 @@ func (s *httpServer) Serve() {
 		http.HandleFunc(endpoint, multipleMiddleware(f, commonMiddleware...))
 	}
 
-	// If conn fails
 	err := s.db.Connect()
 	if err != nil {
 		log.Fatal(err.Error())
@@ -72,16 +91,21 @@ func (s *httpServer) Serve() {
 
 	if s.pKey != "" && s.cert != "" {
 		go func() {
-			if err := http.ListenAndServeTLS(fmt.Sprintf(":%d", s.tlsPort), s.cert, s.pKey, nil); err != nil {
-				log.Fatalln(err)
+			// let main know we are done cleaning up
+			defer wg.Done()
+			if err := s.srv.ListenAndServeTLS(s.cert, s.pKey); err != http.ErrServerClosed {
+				log.Println(err)
 			}
 		}()
 		log.Println("HTTPS server started on port", s.tlsPort)
 	}
 
-	if err = http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil); err != nil {
-		log.Fatalln(err)
-	}
+	go func() {
+		defer wg.Done()
+		if err := s.srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Println(err)
+		}
+	}()
 }
 
 // Handle appropriate func based on method and params

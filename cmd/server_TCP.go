@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/server/tcp"
@@ -42,23 +40,13 @@ var serveTCPCmd = &cobra.Command{
 			select {
 			// Upon receiving a shutdown signal
 			case <-done:
-				fmt.Println("")
 				log.Println("Shutting down server")
-				go func() {
-					err := s.Clean()
-					if err != nil {
-						log.Fatal(err)
-					}
-				}()
-				<-writeDone
-				return
-			case err, ok := (<-errChan):
-				log.Println("Error in write service:", err)
-				if !ok {
-					log.Println("Write service stopped")
+				if err := s.Clean(); err != nil {
+					log.Fatalln("Dirty shutdown:", err)
 				}
-			default:
-				time.Sleep(time.Millisecond * 500)
+				return
+			case err := (<-errChan):
+				log.Println("Error in write service:", err)
 			}
 		}
 	},

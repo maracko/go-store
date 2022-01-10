@@ -45,31 +45,32 @@ func (d *DB) Connect() error {
 		return errors.New("db not initialized")
 	}
 
-	if d.location != "" {
-		if !helpers.FileExists(d.location) && !d.memory {
-			f, err := os.Create(d.location)
-			if err != nil {
-				return err
-			}
-			if _, err = f.WriteString("{}"); err != nil {
-				return err
-			}
-		}
-		db, err := helpers.ReadJsonToMap(d.location)
-		if err != nil {
-			return errors.New("cannot read file: " + err.Error())
-		}
-		d.database = db
-
-		if d.memory {
-			return nil
-		}
-
-		go func() {
-			log.Println("Starting write service")
-			d.writeService.Serve()
-		}()
+	if d.location == "" {
+		return nil
 	}
+	if !helpers.FileExists(d.location) && !d.memory {
+		f, err := os.Create(d.location)
+		if err != nil {
+			return err
+		}
+		if _, err = f.WriteString("{}"); err != nil {
+			return err
+		}
+	}
+	db, err := helpers.ReadJsonToMap(d.location)
+	if err != nil {
+		return errors.New("cannot read file: " + err.Error())
+	}
+	d.database = db
+
+	if d.memory {
+		return nil
+	}
+
+	go func() {
+		log.Println("Starting write service")
+		d.writeService.Serve()
+	}()
 
 	return nil
 }
@@ -99,8 +100,8 @@ func (d *DB) Disconnect() error {
 	d.writeService.WritesDone <- true
 	//Wait until write service has finished
 	<-d.writeService.WritesDone
-	close(d.jobsChan)
 	return nil
+
 }
 
 // Create creates a new record
