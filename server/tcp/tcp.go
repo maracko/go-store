@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"github.com/maracko/go-store/database"
+	"github.com/maracko/go-store/server"
 )
 
 // New create new server
-func New(port int, db *database.DB) *tcpServer {
+func New(port int, db *database.DB) server.Server {
 	s := &tcpServer{
 		port: port,
 		db:   db,

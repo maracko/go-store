@@ -14,6 +14,7 @@ import (
 
 	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/errors"
+	"github.com/maracko/go-store/server"
 	"github.com/maracko/go-store/server/http/helpers"
 )
 
@@ -29,11 +30,11 @@ func init() {
 }
 
 // New create new server
-func New(port, tlsPort int, token, pKey, cert string, db *database.DB, wg *sync.WaitGroup) *httpServer {
+func New(port, tlsPort int, token, pKey, cert string, db *database.DB, wg *sync.WaitGroup) server.Server {
 	srv := &http.Server{
 		Addr: ":" + fmt.Sprint(port),
 	}
-	return &httpServer{
+	s := &httpServer{
 		port:  port,
 		token: token,
 		pKey:  pKey,
@@ -42,6 +43,7 @@ func New(port, tlsPort int, token, pKey, cert string, db *database.DB, wg *sync.
 		srv:   srv,
 		wg:    wg,
 	}
+	return s
 }
 
 // Server is a struct with host info and a database instance
