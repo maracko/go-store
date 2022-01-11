@@ -112,7 +112,7 @@ func (d *DB) Create(key string, value interface{}) error {
 		return fmt.Errorf("%s already exists", key)
 	}
 	d.database[key] = value
-	if d.continousWrite {
+	if d.continousWrite && !d.memory {
 		go d.NewWrite()
 	}
 	return nil
@@ -163,7 +163,7 @@ func (d *DB) Update(key string, value interface{}) error {
 	}
 
 	d.database[key] = value
-	if d.continousWrite {
+	if d.continousWrite && !d.memory {
 		go d.NewWrite()
 	}
 	return nil
@@ -178,7 +178,7 @@ func (d *DB) Delete(key string) error {
 	}
 
 	delete(d.database, key)
-	if d.continousWrite {
+	if d.continousWrite && !d.memory {
 		go d.NewWrite()
 	}
 	return nil
@@ -205,7 +205,7 @@ func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
 		}
 
 	}
-	if d.continousWrite {
+	if d.continousWrite && !d.memory {
 		go d.NewWrite()
 	}
 	return res
