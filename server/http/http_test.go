@@ -11,7 +11,7 @@ import (
 
 var port int
 var db *database.DB
-var s httpServer
+var srv *httpServer
 var path string
 
 func init() {
@@ -22,20 +22,21 @@ func init() {
 	path = ".test.file"
 
 	db = database.New(path, false, true, errChan, dc)
-	s = *New(port, tlsPort, "", "", "", db, &sync.WaitGroup{})
+	s := New(port, tlsPort, "", "", "", db, &sync.WaitGroup{})
+	srv = s.(*httpServer)
 }
 
 func TestConnect(t *testing.T) {
-	if err := s.db.Connect(); err != nil {
+	if err := srv.db.Connect(); err != nil {
 		t.Errorf("db connection failed: %s", err)
 	}
-	if err := s.db.Disconnect(); err != nil {
+	if err := srv.db.Disconnect(); err != nil {
 		t.Errorf("db disconnect failed: %s", err)
 	}
 }
 
 func TestClean(t *testing.T) {
-	if e := s.Clean(); e != nil {
+	if e := srv.Clean(); e != nil {
 		t.Error("{}", e)
 	}
 

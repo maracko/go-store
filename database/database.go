@@ -18,7 +18,7 @@ type DB struct {
 	memory         bool
 	continousWrite bool
 	errChan        chan error
-	jobsChan       chan write.WriteData
+	jobsChan       chan *write.WriteData
 	writeService   *write.WriteService
 	mu             sync.Mutex
 }
@@ -26,7 +26,7 @@ type DB struct {
 // New initializes a database to a given location and sets it's internal DB to an empty map or reads from file first
 func New(location string, memory bool, continousWrite bool, ec chan error, wd chan bool) *DB {
 
-	jc := make(chan write.WriteData, 2)
+	jc := make(chan *write.WriteData, 2)
 	ws := write.NewWriteService(location, jc, ec, wd)
 	return &DB{
 		location:       location,
@@ -78,13 +78,13 @@ func (d *DB) Connect() error {
 // NewWrite sends a copy of database to write job queue
 func (d *DB) NewWrite() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	sendData := map[string]interface{}{}
 	for k, v := range d.database {
 		sendData[k] = v
 	}
+	d.mu.Unlock()
 	data := write.NewWriteData(sendData)
-	d.jobsChan <- data
+	d.jobsChan <- &data
 }
 
 // Disconnect encodes database with json and saves it to location if provided

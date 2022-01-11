@@ -13,14 +13,14 @@ import (
 
 type WriteService struct {
 	LastWrite  time.Time
-	JobsChan   chan WriteData
+	JobsChan   chan *WriteData
 	WritesDone chan bool
 	ErrChan    chan error
 	Path       string
 	mu         sync.Mutex
 }
 
-func NewWriteService(path string, jobs chan WriteData, errs chan error, wd chan bool) *WriteService {
+func NewWriteService(path string, jobs chan *WriteData, errs chan error, wd chan bool) *WriteService {
 	time := time.Now()
 	if path != "" {
 		exists := helpers.FileExists(path)
@@ -69,23 +69,28 @@ func (s *WriteService) Serve() {
 	for {
 		select {
 		case <-s.WritesDone:
-			log.Println("Shutting down writing service")
+			log.Println("Exiting...")
+			hasError := false
 		jobLoop:
 			for {
 				select {
 				case job := <-s.JobsChan:
-					if err := s.write(&job); err != nil {
+					if err := s.write(job); err != nil {
+						hasError = true
 						s.ErrChan <- err
 					}
 				case <-time.After(time.Millisecond * 500):
 					break jobLoop
 				}
 			}
-			log.Println("Last write completed")
+
+			if !hasError {
+				log.Println("Clean exit")
+			}
 			close(s.ErrChan)
 			s.WritesDone <- true
 		case job := (<-s.JobsChan):
-			if err := s.write(&job); err != nil {
+			if err := s.write(job); err != nil {
 				s.ErrChan <- err
 			}
 		}

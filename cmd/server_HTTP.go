@@ -40,6 +40,10 @@ var serveHTTPCmd = &cobra.Command{
 		// Route shutdown signals to done channel
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
+		if location == "" {
+			log.Println("Starting a blank database")
+		}
+
 		s.Serve()
 		srvDone.Add(1)
 		if pKey != "" && cert != "" {
