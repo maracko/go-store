@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"log"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -29,7 +28,7 @@ var serverCmd = &cobra.Command{
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		switch strings.ToUpper(args[0]) {
+		switch args[0] {
 		case "HTTP":
 			_, err := serveHTTPCmd.ExecuteC()
 			if err != nil {

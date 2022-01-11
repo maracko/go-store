@@ -13,8 +13,9 @@ import (
 
 // serveCmd represents the server TCP command
 var serveTCPCmd = &cobra.Command{
-	Use:   "TCP",
-	Short: "Start TCP server",
+	Use:     "TCP",
+	Aliases: []string{"tcp"},
+	Short:   "Start TCP server",
 	Long: `Starts a server over TCP.
 	Current limitation of TCP server is that it stores/reads values as strings while HTTP wil encode/decode to json.
 	Defaults to port 8888. Empty database will be initialized and kept only in memory if no path is provided.

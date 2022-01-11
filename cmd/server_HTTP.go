@@ -14,8 +14,9 @@ import (
 
 // serveHTTPCmd represents the server HTTP command
 var serveHTTPCmd = &cobra.Command{
-	Use:   "HTTP",
-	Short: "Start HTTP server",
+	Use:     "HTTP",
+	Aliases: []string{"http"},
+	Short:   "Start HTTP server",
 	Long: `Starts HTTP server.
 	Defaults to port 8888. Empty database will be initialized and kept only in memory if no path is provided.
 	If you have json file with data you want to read from but not save provide a location along with -m (memory) flag`,
