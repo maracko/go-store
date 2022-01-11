@@ -2,6 +2,7 @@ package http
 
 import (
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/maracko/go-store/database"
@@ -9,25 +10,27 @@ import (
 )
 
 var port int
-var tlsPort int
 var db *database.DB
 var s httpServer
 var path string
 
 func init() {
 	port = 8888
-	tlsPort = 9999
+	tlsPort := 9999
 	errChan := make(chan error, 10)
 	dc := make(chan bool)
 	path = ".test.file"
 
 	db = database.New(path, false, true, errChan, dc)
-	s = *New(port, tlsPort, "", "", "", db)
+	s = *New(port, tlsPort, "", "", "", db, &sync.WaitGroup{})
 }
 
 func TestConnect(t *testing.T) {
 	if err := s.db.Connect(); err != nil {
 		t.Errorf("db connection failed: %s", err)
+	}
+	if err := s.db.Disconnect(); err != nil {
+		t.Errorf("db disconnect failed: %s", err)
 	}
 }
 

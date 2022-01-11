@@ -29,25 +29,27 @@ func init() {
 }
 
 // New create new server
-func New(port, tlsPort int, token, pKey, cert string, db *database.DB) *httpServer {
+func New(port, tlsPort int, token, pKey, cert string, db *database.DB, wg *sync.WaitGroup) *httpServer {
 	srv := &http.Server{
 		Addr: ":" + fmt.Sprint(port),
 	}
 	return &httpServer{
-		port:    port,
-		tlsPort: tlsPort,
-		token:   token,
-		pKey:    pKey,
-		cert:    cert,
-		db:      db,
-		srv:     srv,
+		port:  port,
+		token: token,
+		pKey:  pKey,
+		cert:  cert,
+		db:    db,
+		srv:   srv,
+		wg:    wg,
 	}
 }
 
 // Server is a struct with host info and a database instance
 type httpServer struct {
-	port, tlsPort     int
+	port              int
+	tlsPort           int
 	token, pKey, cert string
+	wg                *sync.WaitGroup
 	db                *database.DB
 	srv               *http.Server
 }
@@ -71,7 +73,7 @@ func (s *httpServer) Clean() error {
 }
 
 // Serve starts the HTTP server
-func (s *httpServer) Serve(wg *sync.WaitGroup) {
+func (s *httpServer) Serve() {
 	key = s.token
 
 	// Map of all endpoints
@@ -92,16 +94,17 @@ func (s *httpServer) Serve(wg *sync.WaitGroup) {
 	if s.pKey != "" && s.cert != "" {
 		go func() {
 			// let main know we are done cleaning up
-			defer wg.Done()
+			defer s.wg.Done()
+			s.srv.Addr = ":" + fmt.Sprint(s.tlsPort)
 			if err := s.srv.ListenAndServeTLS(s.cert, s.pKey); err != http.ErrServerClosed {
-				log.Println(err)
+				log.Println("TLS error:", err)
 			}
 		}()
-		log.Println("HTTPS server started on port", s.tlsPort)
+		log.Println("HTTPS server started")
 	}
 
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		if err := s.srv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Println(err)
 		}

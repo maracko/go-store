@@ -23,6 +23,7 @@ var serveHTTPCmd = &cobra.Command{
 		// create the server
 		errChan := make(chan error, 5)
 		writeSvcDone := make(chan bool)
+		srvDone := &sync.WaitGroup{}
 		done := make(chan os.Signal, 1)
 
 		s := http.New(
@@ -32,13 +33,13 @@ var serveHTTPCmd = &cobra.Command{
 			pKey,
 			cert,
 			database.New(location, memory, continousWrite, errChan, writeSvcDone),
+			srvDone,
 		)
 
 		// Route shutdown signals to done channel
 		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-		srvDone := sync.WaitGroup{}
-		s.Serve(&srvDone)
+		s.Serve()
 		srvDone.Add(1)
 		if pKey != "" && cert != "" {
 			srvDone.Add(1)
