@@ -66,6 +66,7 @@ func (s *httpServer) Clean() error {
 	}()
 
 	err := s.srv.Shutdown(ctx)
+	s.wg.Wait()
 	if err != nil {
 		log.Println("server error:", err)
 	}
@@ -77,7 +78,6 @@ func (s *httpServer) Clean() error {
 // Serve starts the HTTP server
 func (s *httpServer) Serve() {
 	key = s.token
-
 	// Map of all endpoints
 	endpoints := map[string]http.HandlerFunc{
 		"/": s.handle,
@@ -93,9 +93,17 @@ func (s *httpServer) Serve() {
 		log.Fatal(err.Error())
 	}
 
+	go func() {
+		// let main know we are done cleaning up
+		defer s.wg.Done()
+		if err := s.srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Println(err)
+		}
+	}()
+	log.Printf("HTTP server started on port %d", s.port)
+
 	if s.pKey != "" && s.cert != "" {
 		go func() {
-			// let main know we are done cleaning up
 			defer s.wg.Done()
 			s.srv.Addr = ":" + fmt.Sprint(s.tlsPort)
 			if err := s.srv.ListenAndServeTLS(s.cert, s.pKey); err != http.ErrServerClosed {
@@ -105,12 +113,6 @@ func (s *httpServer) Serve() {
 		log.Println("HTTPS server started")
 	}
 
-	go func() {
-		defer s.wg.Done()
-		if err := s.srv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Println(err)
-		}
-	}()
 }
 
 // Handle appropriate func based on method and params

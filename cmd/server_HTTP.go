@@ -45,7 +45,6 @@ var serveHTTPCmd = &cobra.Command{
 		if pKey != "" && cert != "" {
 			srvDone.Add(1)
 		}
-		log.Printf("HTTP server started on port %d", port)
 
 		for {
 			select {
