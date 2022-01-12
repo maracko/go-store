@@ -33,7 +33,7 @@ var serveHTTPCmd = &cobra.Command{
 			token,
 			pKey,
 			cert,
-			database.New(location, memory, continousWrite, errChan, writeSvcDone),
+			database.New(location, memory, continousWrite, errChan, writeSvcDone, writeInt),
 			srvDone,
 		)
 

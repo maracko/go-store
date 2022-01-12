@@ -48,6 +48,7 @@ var host string
 var location string
 var memory bool
 var continousWrite bool
+var writeInt int
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
@@ -57,6 +58,7 @@ func init() {
 	serverCmd.PersistentFlags().IntVarP(&port, "port", "p", 8888, "Port on which to start the server")
 	serverCmd.PersistentFlags().StringVarP(&location, "location", "l", "", "Location of the database file. If empty all changes will be lost upon server shutdown")
 	serverCmd.PersistentFlags().BoolVarP(&memory, "memory", "m", false, "If present values won't be saved upon exit (Has no effect if location is empty)")
-	serverCmd.PersistentFlags().BoolVarP(&continousWrite, "continous-write", "c", false, "Keep writing data to file on every update asynchronously")
+	serverCmd.PersistentFlags().BoolVarP(&continousWrite, "continous-write", "c", false, "Keep writing data to file to disk concurrently")
+	serverCmd.PersistentFlags().IntVarP(&writeInt, "write-interval", "i", 0, "Continous writes occur only once every i minutes (last write is always saved). Default is 1")
 
 }

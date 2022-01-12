@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/maracko/go-store/database/helpers"
 	"github.com/maracko/go-store/database/write"
@@ -17,6 +18,7 @@ type DB struct {
 	database       map[string]interface{}
 	memory         bool
 	continousWrite bool
+	writeInterval  int
 	errChan        chan error
 	jobsChan       chan *write.WriteData
 	writeService   *write.WriteService
@@ -24,7 +26,7 @@ type DB struct {
 }
 
 // New initializes a database to a given location and sets it's internal DB to an empty map or reads from file first
-func New(location string, memory bool, continousWrite bool, ec chan error, wd chan bool) *DB {
+func New(location string, memory bool, continousWrite bool, ec chan error, wd chan bool, writeInt int) *DB {
 
 	jc := make(chan *write.WriteData, 2)
 	ws := write.NewWriteService(location, jc, ec, wd)
@@ -36,6 +38,7 @@ func New(location string, memory bool, continousWrite bool, ec chan error, wd ch
 		memory:         memory,
 		writeService:   ws,
 		continousWrite: continousWrite,
+		writeInterval:  writeInt,
 	}
 }
 
@@ -78,11 +81,14 @@ func (d *DB) Connect() error {
 // NewWrite sends a copy of database to write job queue
 func (d *DB) NewWrite() {
 	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.shouldWrite() {
+		return
+	}
 	sendData := map[string]interface{}{}
 	for k, v := range d.database {
 		sendData[k] = v
 	}
-	d.mu.Unlock()
 	data := write.NewWriteData(sendData)
 	d.jobsChan <- &data
 }
@@ -209,4 +215,11 @@ func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
 		go d.NewWrite()
 	}
 	return res
+}
+
+func (d *DB) shouldWrite() bool {
+	if d.writeInterval == 0 {
+		return true
+	}
+	return time.Now().After(d.writeService.LastWrite.Add(time.Minute * time.Duration(d.writeInterval)))
 }

@@ -41,6 +41,9 @@ func NewWriteService(path string, jobs chan *WriteData, errs chan error, wd chan
 }
 
 func (s *WriteService) write(job *WriteData) error {
+	if job == nil || job.Data == nil {
+		return errors.New("received nil pointer")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -61,11 +64,6 @@ func (s *WriteService) write(job *WriteData) error {
 }
 
 func (s *WriteService) Serve() {
-	if s.Path == "" {
-		//If no path, service just returns the signal that it is done
-		s.WritesDone <- true
-		return
-	}
 	for {
 		select {
 		case <-s.WritesDone:

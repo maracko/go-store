@@ -28,7 +28,7 @@ var serveTCPCmd = &cobra.Command{
 
 		s := tcp.New(
 			port,
-			database.New(location, memory, continousWrite, errChan, writeDone),
+			database.New(location, memory, continousWrite, errChan, writeDone, writeInt),
 		)
 
 		// Route shutdown signals to done channel
