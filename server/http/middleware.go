@@ -17,19 +17,17 @@ var commonMiddleware = []middleware{
 }
 
 func logMiddleWare(h http.HandlerFunc) http.HandlerFunc {
-	if key != "" {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Println(r.Method, r.URL, r.Host)
-			h.ServeHTTP(w, r)
-		})
-	}
-	return h
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println(r.Method, r.URL, r.Host)
+		h.ServeHTTP(w, r)
+	})
+
 }
 
 func authMiddleWare(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
-		if header != key {
+		if key != "" && header != key {
 			helpers.JSONEncode(w, errors.Unauthorized("invalid key"))
 		} else {
 			h.ServeHTTP(w, r)

@@ -56,17 +56,17 @@ var clientCmd = &cobra.Command{
 	},
 }
 
-func execCommands(conn net.Conn) {
-	scanner := bufio.NewScanner(conn)
+func execCommands(conn *net.Conn) {
+	scanner := bufio.NewScanner(*conn)
 	cmds := strings.Split(exec, ";")
 
 	for _, cmd := range cmds {
-		fmt.Fprintln(conn, cmd)
+		fmt.Fprintln(*conn, cmd)
 		ok := scanner.Scan()
-		start := time.Now().UnixNano()
+		start := time.Now().Unix()
 		for !ok {
-			if time.Now().UnixNano()-start >= 30_000_000 {
-				fmt.Println("timeout")
+			if time.Now().Unix()-start > 1 {
+				fmt.Println("server timeout")
 				return
 			}
 		}

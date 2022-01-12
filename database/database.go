@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/maracko/go-store/database/helpers"
 	"github.com/maracko/go-store/database/write"
@@ -18,22 +17,22 @@ type DB struct {
 	database       map[string]interface{}
 	memory         bool
 	continousWrite bool
-	errRcv         chan error
-	jobSender      chan write.WriteData
+	errChan        chan error
+	jobsChan       chan *write.WriteData
 	writeService   *write.WriteService
 	mu             sync.Mutex
 }
 
 // New initializes a database to a given location and sets it's internal DB to an empty map or reads from file first
-func New(location string, memory bool, continousWrite bool, ec chan error) *DB {
+func New(location string, memory bool, continousWrite bool, ec chan error, wd chan bool) *DB {
 
-	jc := make(chan write.WriteData, 2)
-	ws := write.NewWriteService(location, jc, ec)
+	jc := make(chan *write.WriteData, 2)
+	ws := write.NewWriteService(location, jc, ec, wd)
 	return &DB{
 		location:       location,
 		database:       make(map[string]interface{}),
-		errRcv:         ec,
-		jobSender:      jc,
+		errChan:        ec,
+		jobsChan:       jc,
 		memory:         memory,
 		writeService:   ws,
 		continousWrite: continousWrite,
@@ -46,56 +45,63 @@ func (d *DB) Connect() error {
 		return errors.New("db not initialized")
 	}
 
-	if d.location != "" {
-		if !helpers.FileExists(d.location) {
-			f, err := os.Create(d.location)
-			if err != nil {
-				return err
-			}
-			if _, err = f.WriteString("{}"); err != nil {
-				return err
-			}
-		}
-		db, err := helpers.ReadJsonToMap(d.location)
-		if err != nil {
-			return errors.New("cannot read file: " + err.Error())
-		}
-		d.database = db
+	if d.location == "" {
+		return nil
 	}
+	if !helpers.FileExists(d.location) && !d.memory {
+		f, err := os.Create(d.location)
+		if err != nil {
+			return err
+		}
+		if _, err = f.WriteString("{}"); err != nil {
+			return err
+		}
+	}
+	db, err := helpers.ReadJsonToMap(d.location)
+	if err != nil {
+		return errors.New("cannot read file: " + err.Error())
+	}
+	d.database = db
+
 	if d.memory {
 		return nil
 	}
 
 	go func() {
 		log.Println("Starting write service")
-		err := d.writeService.Serve()
-		if err != nil {
-			log.Println(err)
-		}
+		d.writeService.Serve()
 	}()
+
 	return nil
 }
 
+// NewWrite sends a copy of database to write job queue
 func (d *DB) NewWrite() {
-	data := write.NewWriteData(d.database)
-	d.jobSender <- data
+	d.mu.Lock()
+	sendData := map[string]interface{}{}
+	for k, v := range d.database {
+		sendData[k] = v
+	}
+	d.mu.Unlock()
+	data := write.NewWriteData(sendData)
+	d.jobsChan <- &data
 }
 
 // Disconnect encodes database with json and saves it to location if provided
 func (d *DB) Disconnect() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if len(d.database) == 0 || d.location == "" || d.memory {
 		return nil
 	}
 
-	writeFinished := make(chan bool)
-	go func() {
-		d.NewWrite()
-		writeFinished <- true
-	}()
-	<-writeFinished
-	time.Sleep(time.Millisecond * 500)
-	close(d.jobSender)
+	go d.NewWrite()
+	//Send shutdown signal to write service
+	d.writeService.WritesDone <- true
+	//Wait until write service has finished
+	<-d.writeService.WritesDone
 	return nil
+
 }
 
 // Create creates a new record
@@ -106,7 +112,9 @@ func (d *DB) Create(key string, value interface{}) error {
 		return fmt.Errorf("%s already exists", key)
 	}
 	d.database[key] = value
-	d.NewWrite()
+	if d.continousWrite && !d.memory {
+		go d.NewWrite()
+	}
 	return nil
 }
 
@@ -155,7 +163,9 @@ func (d *DB) Update(key string, value interface{}) error {
 	}
 
 	d.database[key] = value
-	d.NewWrite()
+	if d.continousWrite && !d.memory {
+		go d.NewWrite()
+	}
 	return nil
 }
 
@@ -168,7 +178,9 @@ func (d *DB) Delete(key string) error {
 	}
 
 	delete(d.database, key)
-	d.NewWrite()
+	if d.continousWrite && !d.memory {
+		go d.NewWrite()
+	}
 	return nil
 }
 
@@ -193,6 +205,8 @@ func (d *DB) DeleteMany(keys ...string) map[string]interface{} {
 		}
 
 	}
-	d.NewWrite()
+	if d.continousWrite && !d.memory {
+		go d.NewWrite()
+	}
 	return res
 }

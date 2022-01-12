@@ -12,8 +12,8 @@ var serverCmd = &cobra.Command{
 	Short: "Start a new server",
 	Long: `Starts a new server, 2 types are supported:
 	server HTTP -> Serves over HTTP (check serve HTTP help for more info)
-	server TCP -> Serves over custom TCP protocol, interaction is done with the 'go-store cli' command  (check serve TCP help for more info)`,
-	ValidArgs: []string{"HTTP", "TCP"},
+	server TCP -> Serves over custom TCP protocol, interaction is done with the 'go-store cli' command  (check server TCP help for more info)`,
+	ValidArgs: []string{"HTTP", "TCP", "http", "tcp"},
 	// Enforce argument constraints
 	Args: func(cmd *cobra.Command, args []string) error {
 		if err := cobra.OnlyValidArgs(cmd, args); err != nil {

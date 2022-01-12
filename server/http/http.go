@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -8,48 +9,75 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/maracko/go-store/database"
 	"github.com/maracko/go-store/errors"
+	"github.com/maracko/go-store/server"
 	"github.com/maracko/go-store/server/http/helpers"
 )
-
-var key string
 
 type resource struct {
 	Key   string      `json:"key"`
 	Value interface{} `json:"value"`
 }
 
+var key string
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
 // New create new server
-func New(port int, db *database.DB, errChan chan error) *httpServer {
-	return &httpServer{
-		port: port,
-		db:   db,
+func New(port, tlsPort int, token, pKey, cert string, db *database.DB, wg *sync.WaitGroup) server.Server {
+	srv := &http.Server{
+		Addr: ":" + fmt.Sprint(port),
 	}
+	s := &httpServer{
+		port:  port,
+		token: token,
+		pKey:  pKey,
+		cert:  cert,
+		db:    db,
+		srv:   srv,
+		wg:    wg,
+	}
+	return s
 }
 
 // Server is a struct with host info and a database instance
 type httpServer struct {
-	port int
-	db   *database.DB
+	port              int
+	tlsPort           int
+	token, pKey, cert string
+	wg                *sync.WaitGroup
+	db                *database.DB
+	srv               *http.Server
 }
 
 // Clean clean server
 func (s *httpServer) Clean() error {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-time.After(time.Millisecond * 1500)
+		cancel()
+	}()
+
+	err := s.srv.Shutdown(ctx)
+	s.wg.Wait()
+	if err != nil {
+		log.Println("server error:", err)
+	}
+	log.Println("HTTP/S shut down")
+
 	return s.db.Disconnect()
 }
 
 // Serve starts the HTTP server
-func (s *httpServer) Serve(cert, pKey, authKey string) {
-
-	key = authKey
-
+func (s *httpServer) Serve() {
+	key = s.token
 	// Map of all endpoints
 	endpoints := map[string]http.HandlerFunc{
 		"/": s.handle,
@@ -60,32 +88,31 @@ func (s *httpServer) Serve(cert, pKey, authKey string) {
 		http.HandleFunc(endpoint, multipleMiddleware(f, commonMiddleware...))
 	}
 
-	// If conn fails
 	err := s.db.Connect()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	// Write and close file on exit
-	defer func() {
-		if err = s.db.Disconnect(); err != nil {
+	go func() {
+		// let main know we are done cleaning up
+		defer s.wg.Done()
+		if err := s.srv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Println(err)
 		}
 	}()
+	log.Printf("HTTP server started on port %d", s.port)
 
-	if cert != "" && pKey != "" {
+	if s.pKey != "" && s.cert != "" {
 		go func() {
-			//TODO - add dynamic port number
-			if err := http.ListenAndServeTLS(fmt.Sprintf(":%d", 3280), cert, pKey, nil); err != nil {
-				log.Fatalln(err)
+			defer s.wg.Done()
+			s.srv.Addr = ":" + fmt.Sprint(s.tlsPort)
+			if err := s.srv.ListenAndServeTLS(s.cert, s.pKey); err != http.ErrServerClosed {
+				log.Println("TLS error:", err)
 			}
 		}()
-		log.Println("HTTPS server started on port", 3820)
+		log.Println("HTTPS server started")
 	}
 
-	if err = http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil); err != nil {
-		log.Fatalln(err)
-	}
 }
 
 // Handle appropriate func based on method and params

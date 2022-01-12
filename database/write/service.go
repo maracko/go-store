@@ -12,74 +12,87 @@ import (
 )
 
 type WriteService struct {
-	LastWrite     time.Time
-	JobsChan      chan WriteData
-	writesSkipped int
-	ErrChan       chan error
-	Path          string
-	mu            sync.Mutex
+	LastWrite  time.Time
+	JobsChan   chan *WriteData
+	WritesDone chan bool
+	ErrChan    chan error
+	Path       string
+	mu         sync.Mutex
 }
 
-func NewWriteService(path string, jobs chan WriteData, errs chan error) *WriteService {
+func NewWriteService(path string, jobs chan *WriteData, errs chan error, wd chan bool) *WriteService {
 	time := time.Now()
-	exists := helpers.FileExists(path)
-	if !exists {
-		writeable := os.WriteFile(path, []byte("{}"), 0777)
-		if writeable != nil {
-			log.Fatalln("file not writeable")
+	if path != "" {
+		exists := helpers.FileExists(path)
+		if !exists {
+			writeable := os.WriteFile(path, []byte("{}"), 0777)
+			if writeable != nil {
+				log.Fatalln("file not writeable:", writeable)
+			}
 		}
 	}
 	return &WriteService{
-		LastWrite: time,
-		JobsChan:  jobs,
-		ErrChan:   errs,
-		Path:      path,
+		LastWrite:  time,
+		JobsChan:   jobs,
+		ErrChan:    errs,
+		Path:       path,
+		WritesDone: wd,
 	}
 }
 
 func (s *WriteService) write(job *WriteData) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !job.Time.After(s.LastWrite) {
-		return nil
-	}
-	if len(s.JobsChan) > 1 && s.writesSkipped < 5 {
-		s.writesSkipped++
+
+	if s.Path == "" || !job.Time.After(s.LastWrite) {
 		return nil
 	}
 
 	data, err := json.Marshal(job.Data)
 	if err != nil {
-		return errors.New("marshall error: " + err.Error())
+		return errors.New("marshal error: " + err.Error())
 	}
 	err = os.WriteFile(s.Path, data, 0777)
 	if err != nil {
 		return errors.New("write error: " + err.Error())
 	}
-
-	s.writesSkipped = 0
+	s.LastWrite = time.Now()
 	return nil
 }
 
-func (s *WriteService) Serve() error {
+func (s *WriteService) Serve() {
+	if s.Path == "" {
+		//If no path, service just returns the signal that it is done
+		s.WritesDone <- true
+		return
+	}
 	for {
 		select {
-		case job, ok := (<-s.JobsChan):
-			go func() {
-				if err := s.write(&job); err != nil {
-					s.ErrChan <- err
+		case <-s.WritesDone:
+			log.Println("Exiting...")
+			hasError := false
+		jobLoop:
+			for {
+				select {
+				case job := <-s.JobsChan:
+					if err := s.write(job); err != nil {
+						hasError = true
+						s.ErrChan <- err
+					}
+				case <-time.After(time.Millisecond * 500):
+					break jobLoop
 				}
-			}()
-
-			if !ok {
-				close(s.ErrChan)
-				return errors.New("job channel closed")
 			}
 
-			time.Sleep(time.Second * 2)
-
-		default:
-			continue
+			if !hasError {
+				log.Println("Clean exit")
+			}
+			close(s.ErrChan)
+			s.WritesDone <- true
+		case job := (<-s.JobsChan):
+			if err := s.write(job); err != nil {
+				s.ErrChan <- err
+			}
 		}
 	}
 }
