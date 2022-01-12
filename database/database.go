@@ -93,6 +93,15 @@ func (d *DB) NewWrite() {
 	d.jobsChan <- &data
 }
 
+func (d *DB) sendData() {
+	sendData := map[string]interface{}{}
+	for k, v := range d.database {
+		sendData[k] = v
+	}
+	data := write.NewWriteData(sendData)
+	d.jobsChan <- &data
+}
+
 // Disconnect encodes database with json and saves it to location if provided
 func (d *DB) Disconnect() error {
 	d.mu.Lock()
@@ -101,7 +110,7 @@ func (d *DB) Disconnect() error {
 		return nil
 	}
 
-	go d.NewWrite()
+	go d.sendData()
 	//Send shutdown signal to write service
 	d.writeService.WritesDone <- true
 	//Wait until write service has finished
