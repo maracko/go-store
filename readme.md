@@ -42,6 +42,18 @@ go-store [command] [argument] --flags
 
 `go-store help` can be used to get help on commands
 
+## Config
+
+### All the options can be set inside a config file or using environment variables.
+
+#### Environment variables have the prefix `GOSTORE_`. Like `GOSTORE_PORT`
+
+#### Config file in format `.gostore-config.{extension}` file in the working directory
+
+#### The file can be saved in any language viper supports (json, yaml, toml, etc.)
+
+#### To learn about the flags you can use, see below.
+
 ## Examples
 
 <br>
@@ -65,9 +77,15 @@ Logs will be outputed to stdout in format `Time` `Method` `URL` `Host`
 
 ### Server flags
 
-- **--location -l** => location of database file to read from (if blank or not provided a empty database in memory only will be initialised)
-- **--port -p** => port on which to start the server
-- **--memory -m** => if present database won't be saved upon exit (even if read from a file first)
+- **--location -l** => Location of database file to read from (if blank or not provided a empty database in memory only will be initialised)
+- **--port -p** => Port on which to start serving http
+- **--tls-port** => Port on which to start serving https
+- **--memory -m** => If present database won't be saved upon exit (even if read from a file first)
+- **--private-key -k** => Used for HTTPS. Put a path to key
+- **--certificate -c** => Used for HTTPS. Put a path to certificate
+- **--token -t** => Used for auth. Send in `Authorization` header
+- **--continous-write -c** => If you want to keep saving the DB to the disks
+- **--write-interval -i** => How many minutes to wait between writes. Default is 1 minute, if 0 will always write
   <br>
 
 ### **HTTP Requests**
@@ -82,7 +100,7 @@ Logs will be outputed to stdout in format `Time` `Method` `URL` `Host`
 - PATCH => update existing key
 - DELETE => delete key/keys
 
-For retrieving operations just add key/key's in the URI path. To retrieve multiple values set multiple keys split with a comma
+For retrieving operations just add key/s in the URI path. To retrieve multiple values set multiple keys split with a comma.
 <br>
 
 ### Data
@@ -95,26 +113,40 @@ When you want to create/update keys you must send data inside request **body in 
  `http://localhost:8888/myKey`  
  or  
  `http://localhost:8888/myKey,myOtherKey,anotherKey`
+<br/>
 
 **POST**  
  `http://localhost:8888`  
- _BODY_ = {
-"key": "myKey",
-"value": "myValue"
-}  
- **PATCH**  
+ _BODY_ =
+
+```json
+{
+  "key": "myKey",
+  "value": "myValue"
+}
+```
+
+<br/>
+
+**PATCH**  
  `http://localhost:8888`  
- _BODY_ = {
-"key": "myKey",
-"value": "myNewValue"
-}  
- **DELETE**  
+ _BODY_ =
+
+```json
+{
+  "key": "myKey",
+  "value": "myNewValue"
+}
+```
+
+<br/>
+
+**DELETE**  
  `http://localhost:8888/myKey`  
  or  
- `http://localhost:8888/myKey,myOtherKey,anotherKey`  
-<br>
+ `http://localhost:8888/myKey,myOtherKey,anotherKey`
 
-<br>
+<br/>
 
 ## TCP
 
@@ -127,7 +159,14 @@ go-store server TCP -p 8888 -l /home/mario/database.json
 2021/05/02 18:58:09 Accepted connection from [::1]:34126
 ```
 
-TCP server supports the same flags as HTTP. To interact with it use the `go-store client`
+### Server flags
+
+- **--location -l** => location of database file to read from (if blank or not provided a empty database in memory only will be initialised)
+- **--port -p** => port on which to start serving http
+- **--memory -m** => if present database won't be saved upon exit (even if read from a file first)
+- **--continous-write -c** => if you want to keep saving the DB to the disks
+- **--write-interval -i** => how many minutes to wait between writes. Default is 1 minute
+  <br>
 
 ```
 go-store client -s localhost -p 9999
@@ -144,7 +183,15 @@ $:
 **TCP currently only supports strings for both key and value, and will do no encoding on them (so no complex types)**  
 <br>
 
-## TCP Client commands
+## TCP Client
+
+```
+go-store client -s localhost -p 8888
+```
+
+### Client flags
+
+- **--command -c** => put a list of commands to execute and you will get output to stdout. Optionally chain them with `**` to execute them in sequence.
 
 <br>
 
