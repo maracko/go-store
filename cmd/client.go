@@ -29,7 +29,7 @@ var clientCmd = &cobra.Command{
 		defer conn.Close()
 
 		if exec != "" {
-			execCommands(conn)
+			execCommands(&conn)
 			return
 		}
 
@@ -58,7 +58,7 @@ var clientCmd = &cobra.Command{
 
 func execCommands(conn *net.Conn) {
 	scanner := bufio.NewScanner(*conn)
-	cmds := strings.Split(exec, ";")
+	cmds := strings.Split(exec, "**")
 
 	for _, cmd := range cmds {
 		fmt.Fprintln(*conn, cmd)

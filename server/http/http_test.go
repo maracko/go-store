@@ -21,7 +21,7 @@ func init() {
 	dc := make(chan bool)
 	path = ".test.file"
 
-	db = database.New(path, false, true, errChan, dc)
+	db = database.New(path, false, true, errChan, dc, 1)
 	s := New(port, tlsPort, "", "", "", db, &sync.WaitGroup{})
 	srv = s.(*httpServer)
 }

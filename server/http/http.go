@@ -56,7 +56,7 @@ type httpServer struct {
 	srv               *http.Server
 }
 
-// Clean clean server
+// Clean stops http/s and disconnects the db
 func (s *httpServer) Clean() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
