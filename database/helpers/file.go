@@ -3,6 +3,7 @@ package helpers
 import (
 	"encoding/json"
 	"os"
+	"runtime"
 	"syscall"
 )
 
@@ -12,8 +13,18 @@ func FileExists(f string) bool {
 }
 
 func FileWriteable(f string) bool {
-	err := syscall.Access(f, syscall.O_RDWR)
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		err = syscall.Access(f, syscall.O_RDWR)
+	case "windows":
+		info, _ := os.Stat(f)
+		m := info.Mode()
+		return m.IsRegular()
+
+	}
 	return err == nil
+
 }
 
 func ReadJsonToMap(f string) (map[string]interface{}, error) {
